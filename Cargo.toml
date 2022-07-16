@@ -19,5 +19,9 @@ rayon = "1.5.3"
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-ndarray = "0.15.4"
+ndarray = { version = "0.15.4", features = ["serde"] }
 ogcat = {git = "https://github.com/RuneBlaze/ogcat"}
+rmp-serde = "1.1.0"
+
+[dependencies.rmp]
+rmp = "^0.8"

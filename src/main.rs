@@ -1,9 +1,12 @@
 mod melt;
 mod structures;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
+use anyhow::Ok;
 use clap::{Parser, Subcommand};
+use melt::oneshot_melt;
+use tracing::info;
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -30,8 +33,23 @@ enum SubCommand {
     Dance {},
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
+    let now = Instant::now();
     let args = Args::parse();
     tracing_subscriber::fmt::init();
-    println!("Hello, world!");
+    match args.cmd {
+        SubCommand::Melt {
+            input,
+            tree,
+            outdir,
+            max_size,
+        } => {
+            oneshot_melt(&input, &tree, max_size, &outdir)?;
+        }
+        SubCommand::Dance {} => {
+            println!("Dance!");
+        }
+    }
+    info!("total elapsed time: {:?}", now.elapsed());
+    Ok(())
 }
