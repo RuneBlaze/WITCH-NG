@@ -1,3 +1,6 @@
+mod adder;
+mod external;
+mod matching;
 mod melt;
 mod structures;
 
@@ -7,6 +10,8 @@ use anyhow::Ok;
 use clap::{Parser, Subcommand};
 use melt::oneshot_melt;
 use tracing::info;
+
+use crate::adder::oneshot_add_queries;
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -30,7 +35,10 @@ enum SubCommand {
     },
 
     /// Receive payload from WITCH frontend and merges in the query sequences
-    Dance {},
+    Dance {
+        #[clap(short, long)]
+        root: PathBuf,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -46,8 +54,8 @@ fn main() -> anyhow::Result<()> {
         } => {
             oneshot_melt(&input, &tree, max_size, &outdir)?;
         }
-        SubCommand::Dance {} => {
-            println!("Dance!");
+        SubCommand::Dance { root } => {
+            oneshot_add_queries(&root)?;
         }
     }
     info!("total elapsed time: {:?}", now.elapsed());

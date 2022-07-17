@@ -1,52 +1,18 @@
+use crate::structures::*;
 use ahash::AHashSet;
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
-use ndarray::{Array, ShapeBuilder, Ix2, Axis, Slice};
+use ndarray::{Array, Axis, Ix2, ShapeBuilder, Slice};
 use ogcat::ogtree::*;
 use seq_io::fasta::{Reader, Record};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BinaryHeap,
+    fs::{create_dir_all, File},
+    io::{BufWriter, Write},
+    path::{Path, PathBuf},
+};
 use tracing::info;
-use std::{collections::BinaryHeap, path::{PathBuf, Path}, fs::{create_dir_all, File}, io::{BufWriter, Write}};
-
-pub struct TaxaHierarchy {
-    pub reordered_taxa: Vec<usize>,
-    pub decomposition_ranges: Vec<(usize, usize)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CrucibleCtxt {
-    pub nchars_partial_sum : Array::<u32, Ix2>,
-    pub hmm_ranges : Vec<(usize, usize)>,
-}
-
-impl CrucibleCtxt {
-    pub fn new(nchars_partial_sum : Array::<u32, Ix2>, hmm_ranges : Vec<(usize, usize)>) -> Self {
-        Self {
-            nchars_partial_sum,
-            hmm_ranges,
-        }
-    }
-
-    pub fn retrieve_nchars_noalloc(&self, hmm_idx : usize, buf : &mut [u32]) {
-        let shape = self.nchars_partial_sum.shape();
-        let (start, end) = self.hmm_ranges[hmm_idx];
-        let k = shape[1];
-        for i in 0..k {
-            buf[i] = self.nchars_partial_sum[(end, i)] - self.nchars_partial_sum[(start, i)];
-        }
-    }
-
-    pub fn retrieve_nchars(&self, hmm_idx : usize) -> Vec<u32> {
-        let k = self.nchars_partial_sum.shape()[1];
-        let mut buf = vec![0; k];
-        self.retrieve_nchars_noalloc(hmm_idx, &mut buf);
-        return buf;
-    }
-
-    pub fn num_hmms(&self) -> usize {
-        self.hmm_ranges.len()
-    }
-}
 
 pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
     let n = tree.ntaxa;
@@ -113,8 +79,16 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
         let view = &mut reordered_taxa[lb..ub];
         view.sort_unstable_by_key(|e| !taxa_label[*e]);
         taxa_label.clear();
-        pq.push((tree_sizes[best_cut] as usize, (lb, lb + tree_sizes[best_cut] as usize), best_cut));
-        pq.push((size - tree_sizes[best_cut] as usize, (lb + tree_sizes[best_cut] as usize, ub), root));
+        pq.push((
+            tree_sizes[best_cut] as usize,
+            (lb, lb + tree_sizes[best_cut] as usize),
+            best_cut,
+        ));
+        pq.push((
+            size - tree_sizes[best_cut] as usize,
+            (lb + tree_sizes[best_cut] as usize, ub),
+            root,
+        ));
     }
     TaxaHierarchy {
         reordered_taxa,
@@ -130,7 +104,10 @@ pub fn oneshot_melt(
 ) -> anyhow::Result<()> {
     let collection = TreeCollection::from_newick(tree).expect("Failed to read tree");
     let decomp = hierarchical_decomp(&collection.trees[0], max_size);
-    info!(num_subsets = decomp.decomposition_ranges.len(), "decomposed input tree");
+    info!(
+        num_subsets = decomp.decomposition_ranges.len(),
+        "decomposed input tree"
+    );
     let mut reader = Reader::from_path(input)?;
     let mut records_failable: Result<Vec<_>, _> =
         reader.records().into_iter().into_iter().collect();
@@ -144,13 +121,13 @@ pub fn oneshot_melt(
     let n = records.len(); // # of seqs
     let k = records[0].seq.len(); // # of columns
     let mut nchars_prefix = Array::<u32, _>::zeros((n + 1, k).f());
-    for i in 1..n+1 {
+    for i in 1..n + 1 {
         for j in 0..k {
             if i == 1 {
-                nchars_prefix[[i, j]] = if records[i-1].seq[j] == b'-' { 0 } else { 1 };
+                nchars_prefix[[i, j]] = if records[i - 1].seq[j] == b'-' { 0 } else { 1 };
             } else {
                 nchars_prefix[[i, j]] =
-                    nchars_prefix[[i - 1, j]] + if records[i-1].seq[j] == b'-' { 0 } else { 1 };
+                    nchars_prefix[[i - 1, j]] + if records[i - 1].seq[j] == b'-' { 0 } else { 1 };
             }
         }
     }
@@ -164,12 +141,24 @@ pub fn oneshot_melt(
             r.write_wrap(&mut writer, 60)?;
         }
     }
-    let ctxt = CrucibleCtxt {
-        nchars_partial_sum: nchars_prefix,
-        hmm_ranges: decomp.decomposition_ranges,
-    };
+
     let mut writer = BufWriter::new(File::create(metadata_path)?);
+    let mut metadata: Vec<HmmMeta> = vec![];
+    let mut buf = vec![0u32; k];
+    for &decomp_range in &decomp.decomposition_ranges {
+        CrucibleCtxt::retrieve_nchars_noalloc(&nchars_prefix, decomp_range, &mut buf);
+        let mut nonzero_counts: Vec<u32> = vec![];
+        let mut column_positions: Vec<usize> = vec![];
+        for (i, &c) in buf.iter().enumerate() {
+            if c > 0 {
+                nonzero_counts.push(c);
+                column_positions.push(i);
+            }
+        }
+        let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
+        metadata.push(hmm);
+    }
+    let ctxt = CrucibleCtxt::new(metadata);
     serde_json::to_writer(&mut writer, &ctxt)?;
-    // writer.write_all(&buf)?;
     Ok(())
 }
