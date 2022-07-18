@@ -22,10 +22,16 @@ impl HmmMeta {
             column_poitions,
         }
     }
+
+    pub fn num_seqs(&self) -> usize {
+        let (start, end) = self.sequence_range;
+        end - start
+    }
 }
 
 pub struct TaxaHierarchy {
     pub reordered_taxa: Vec<usize>,
+    pub taxa_positions: Vec<usize>,
     pub decomposition_ranges: Vec<(usize, usize)>,
 }
 

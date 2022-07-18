@@ -1,9 +1,10 @@
-use crate::structures::*;
+use crate::{external::hmmbuild, structures::*};
 use ahash::AHashSet;
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
 use ndarray::{Array, Axis, Ix2, ShapeBuilder, Slice};
 use ogcat::ogtree::*;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::fasta::{Reader, Record};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -33,12 +34,11 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
             });
         }
     }
+    decomposition_ranges.push((0usize, tree.ntaxa));
     while let Some((size, (lb, ub), root)) = pq.pop() {
-        if size >= 2 {
-            decomposition_ranges.push((lb, ub));
-        }
-        if size < max_size {
-            continue;
+        assert_eq!(size, ub - lb);
+        if size <= max_size {
+            break;
         }
         let it = PostorderIterator::from_node_excluding(tree, root, &cuts);
         let mut best_inbalance = u64::MAX;
@@ -79,6 +79,12 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
         let view = &mut reordered_taxa[lb..ub];
         view.sort_unstable_by_key(|e| !taxa_label[*e]);
         taxa_label.clear();
+        if tree_sizes[best_cut] >= 2 {
+            decomposition_ranges.push((lb, lb + tree_sizes[best_cut] as usize));
+        }
+        if size - tree_sizes[best_cut] as usize > 2 {
+            decomposition_ranges.push(((lb + tree_sizes[best_cut] as usize, ub)));
+        }
         pq.push((
             tree_sizes[best_cut] as usize,
             (lb, lb + tree_sizes[best_cut] as usize),
@@ -90,8 +96,14 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
             root,
         ));
     }
+    let mut taxa_positions: Vec<usize> = vec![0; n];
+    for (p, t) in reordered_taxa.iter().enumerate() {
+        taxa_positions[*t] = p;
+    }
+
     TaxaHierarchy {
         reordered_taxa,
+        taxa_positions,
         decomposition_ranges,
     }
 }
@@ -116,8 +128,11 @@ pub fn oneshot_melt(
     records.sort_unstable_by_key(|r| {
         let taxon_name = String::from_utf8(r.head.clone()).unwrap();
         let id = ts.to_id[&taxon_name];
-        decomp.reordered_taxa[id]
+        decomp.taxa_positions[id]
     });
+    for (i, &t) in decomp.reordered_taxa.iter().enumerate() {
+        assert_eq!(&String::from_utf8(records[i].head.clone())?, &ts.names[t]);
+    }
     let n = records.len(); // # of seqs
     let k = records[0].seq.len(); // # of columns
     let mut nchars_prefix = Array::<u32, _>::zeros((n + 1, k).f());
@@ -141,6 +156,20 @@ pub fn oneshot_melt(
             r.write_wrap(&mut writer, 60)?;
         }
     }
+
+    decomp
+        .decomposition_ranges
+        .par_iter()
+        .enumerate()
+        .for_each(|(i, &(lb, ub))| {
+            let to_write = &records[lb..ub];
+            hmmbuild(
+                to_write.iter(),
+                format!("{}", i).as_str(),
+                &subsets_root.join(format!("{}.hmm", i)),
+            )
+            .expect("Failed to build HMM");
+        });
 
     let mut writer = BufWriter::new(File::create(metadata_path)?);
     let mut metadata: Vec<HmmMeta> = vec![];

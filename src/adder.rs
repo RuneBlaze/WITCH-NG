@@ -10,7 +10,7 @@ use itertools::Itertools;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, ParallelBridge, ParallelIterator,
 };
-use seq_io::fasta::OwnedRecord;
+use seq_io::{fasta::OwnedRecord, BaseRecord};
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
@@ -83,6 +83,9 @@ impl AdderContext {
     ) -> anyhow::Result<()> {
         let metadata = &self.hmm_ctxt.metadata[hmm_id as usize];
         let hits = &self.transposed_scores[hmm_id as usize];
+        if hits.is_empty() {
+            return Ok(());
+        }
         let queries_for_hmm = hits
             .iter()
             .map(|&(seq_id, _)| &self.queries[seq_id as usize]);
@@ -97,6 +100,10 @@ impl AdderContext {
             let seq_weight = hits[record_id].1;
             let mut residue_ix = 0u32; // which character of the query are we at?
             let mut column_ix = 0u32; // which column of the consensus are we at?
+            assert_eq!(
+                String::from_utf8(self.queries[seq_id as usize].head.clone())?,
+                String::from_utf8(record.head().iter().copied().collect_vec())?
+            );
             for &c in record.seq_lines().flatten() {
                 match c {
                     b'.' => {
@@ -124,6 +131,7 @@ impl AdderContext {
                     }
                 }
             }
+            assert_eq!(column_ix, metadata.column_poitions.len() as u32);
             record_id += 1;
         }
         Ok(())

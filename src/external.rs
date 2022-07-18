@@ -1,8 +1,14 @@
+use ahash::AHashMap;
 use anyhow::bail;
+use lazy_static::lazy_static;
+use regex::Regex;
 use seq_io::fasta::OwnedRecord;
 use seq_io::BaseRecord;
+use tracing::debug;
+use std::collections::HashMap;
 use std::fs::File;
 use std::process::Stdio;
+
 use std::{fs::rename, path::PathBuf, process::Command};
 
 pub fn hmmalign<'a, R>(hmm_path: &PathBuf, seqs: R) -> anyhow::Result<Vec<u8>>
@@ -31,8 +37,90 @@ where
         bail!("hmmalign failed: {:?}", output);
     }
     Ok(output.stdout)
-    // let stdout: &[u8] = &output.stdout;
-    // let mut reader = seq_io::fasta::Reader::new(stdout);
-    // let r: Result<Vec<_>, _> = reader.records().into_iter().into_iter().collect();
-    // Ok(r?)
+}
+
+pub fn hmmbuild<'a, R>(seqs: R, name: &str, outpath: &PathBuf) -> anyhow::Result<()>
+where
+    R: Iterator<Item = &'a OwnedRecord>,
+{
+    let mut child = Command::new("hmmbuild")
+        .arg("--informat")
+        .arg("afa")
+        .arg("--ere")
+        .arg("0.59")
+        .arg("--symfrac")
+        .arg("0.0")
+        .arg("-n")
+        .arg(name)
+        .arg(outpath)
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        for s in seqs {
+            s.write(&mut stdin)?;
+        }
+    } else {
+        bail!("Failed to get stdin handle");
+    }
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        bail!("hmmbuild failed: {:?}", output);
+    }
+    Ok(())
+}
+
+pub fn hmmsearch<'a, R>(
+    hmm_path: &PathBuf,
+    seqs: R,
+    seq_id: &AHashMap<String, u32>,
+) -> anyhow::Result<Vec<(u32, f64)>>
+where
+    R: Iterator<Item = &'a OwnedRecord>,
+{
+    let mut child = Command::new("hmmsearch")
+        .arg("--noali")
+        .arg("--max")
+        .arg(hmm_path)
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        for s in seqs {
+            s.write(&mut stdin)?;
+        }
+    } else {
+        bail!("Failed to get stdin handle");
+    }
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        bail!("hmmsearch failed: {:?}", output);
+    }
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)").unwrap();
+    }
+    let raw_output = String::from_utf8(output.stdout)?;
+    let mut res: Vec<(u32, f64)> = vec![];
+    let mut start_reading = false;
+    for l in raw_output.lines().map(|l| l.trim()) {
+        if !start_reading && l.starts_with("E-value") {
+            start_reading = true;
+        } else if start_reading && l.is_empty() {
+            break;
+        } else if start_reading {
+            if let Some(caps) = RE.captures(l) {
+                let entire = caps.get(0).unwrap().as_str();
+                if entire.contains("--") {
+                    continue;
+                }
+                let seq_name = caps.get(9).unwrap().as_str();
+                let seq_id = *seq_id.get(seq_name).unwrap();
+                let bitscore = caps.get(2).unwrap().as_str().parse::<f64>()?;
+                res.push((seq_id, bitscore));
+            }
+        }
+    }
+    Ok(res)
 }

@@ -3,6 +3,7 @@ mod compact_printer;
 mod external;
 mod matching;
 mod melt;
+mod score_calc;
 mod structures;
 
 use std::{path::PathBuf, time::Instant};
@@ -12,7 +13,7 @@ use clap::{Parser, Subcommand};
 use melt::oneshot_melt;
 use tracing::info;
 
-use crate::adder::oneshot_add_queries;
+use crate::{adder::oneshot_add_queries, score_calc::oneshot_score_queries};
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -35,6 +36,11 @@ enum SubCommand {
         max_size: usize,
     },
 
+    Score {
+        #[clap(short, long)]
+        root: PathBuf,
+    },
+
     /// Receive payload from WITCH frontend and merges in the query sequences
     Dance {
         #[clap(short, long)]
@@ -54,6 +60,9 @@ fn main() -> anyhow::Result<()> {
             max_size,
         } => {
             oneshot_melt(&input, &tree, max_size, &outdir)?;
+        }
+        SubCommand::Score { root } => {
+            oneshot_score_queries(&root)?;
         }
         SubCommand::Dance { root } => {
             oneshot_add_queries(&root)?;
