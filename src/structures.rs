@@ -3,9 +3,6 @@ use std::{fs::File, io::BufReader, path::Path};
 use ndarray::{Array, Ix2};
 use serde::{Deserialize, Serialize};
 
-/// data structure for keeping track of singleton columns efficiently
-pub struct CompactHomologies {}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct HmmMeta {
     pub sequence_range: (usize, usize),
@@ -61,6 +58,10 @@ impl CrucibleCtxt {
 
     pub fn num_hmms(&self) -> usize {
         self.metadata.len()
+    }
+
+    pub fn num_consensus_columns(&self) -> usize {
+        self.metadata[0].column_poitions.len()
     }
 }
 

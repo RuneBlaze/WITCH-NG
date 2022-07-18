@@ -1,11 +1,21 @@
 use crate::{
+    compact_printer::{CompactHomologies, FormattedHomologies},
     external,
+    matching::solve_matching_problem,
     structures::{AdderPayload, CrucibleCtxt},
 };
 use ahash::AHashMap;
 use anyhow::bail;
+use itertools::Itertools;
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, ParallelBridge, ParallelIterator,
+};
 use seq_io::fasta::OwnedRecord;
-use std::{fs::File, io::BufReader, path::PathBuf};
+use std::{
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 pub struct AdderContext {
     base_dir: PathBuf,
@@ -34,6 +44,14 @@ impl AdderContext {
             queries,
             transposed_scores: transposed,
         })
+    }
+
+    pub fn base_alignment_path(&self) -> PathBuf {
+        self.base_dir.parent().unwrap().join("backbone.aln.fasta")
+    }
+
+    pub fn default_output_path(&self) -> PathBuf {
+        self.base_dir.parent().unwrap().join("merged.afa")
     }
 }
 
@@ -92,7 +110,7 @@ impl AdderContext {
                             seq_weight * metadata.chars_cnt[column_ix as usize] as f64;
                         let global_column = metadata.column_poitions[column_ix as usize];
                         subweights.weights[seq_id as usize]
-                            .entry((residue_ix, global_column as u32, ))
+                            .entry((residue_ix, global_column as u32))
                             .and_modify(|w| *w += weight_delta)
                             .or_insert(weight_delta);
                         residue_ix += 1;
@@ -112,9 +130,7 @@ impl AdderContext {
     }
 }
 
-pub fn unoptimized_process_transposed_payload(
-    ctxt: &AdderContext,
-) -> anyhow::Result<Subweights> {
+pub fn unoptimized_process_transposed_payload(ctxt: &AdderContext) -> anyhow::Result<Subweights> {
     let mut subweights = Subweights::from_ctxt(ctxt);
     for i in 0..ctxt.hmm_ctxt.num_hmms() {
         ctxt.process_one_hmm(i as u32, &mut subweights)?;
@@ -122,11 +138,29 @@ pub fn unoptimized_process_transposed_payload(
     Ok(subweights)
 }
 
-pub fn oneshot_add_queries(basedir : &PathBuf) -> anyhow::Result<()> {
+pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
     let ctxt = AdderContext::manual_construction(basedir)?;
     let subweights = unoptimized_process_transposed_payload(&ctxt)?;
-    for w in &subweights.weights {
-        assert!(w.len() > 0);
-    }
+    println!("{:?}", subweights.weights[0]);
+    let m = ctxt.hmm_ctxt.metadata[0].column_poitions.len();
+    let dp_solutions: Vec<Vec<i32>> = subweights
+        .weights
+        .into_par_iter()
+        .enumerate()
+        .map(|(i, w)| {
+            let n = ctxt.queries[i].seq.len();
+            solve_matching_problem((n, m), &w)
+        })
+        .collect();
+    let mut c_homologies =
+        CompactHomologies::new(ctxt.hmm_ctxt.num_consensus_columns(), dp_solutions);
+    c_homologies.append_consensus_column_hits();
+    let hydrated_homologies = c_homologies.transl();
+    let mut output_writer = BufWriter::new(File::create(ctxt.default_output_path())?);
+    hydrated_homologies.write_all_sequences(
+        &ctxt.queries,
+        &ctxt.base_alignment_path(),
+        &mut output_writer,
+    )?;
     Ok(())
 }

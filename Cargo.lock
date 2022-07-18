@@ -276,6 +276,7 @@ dependencies = [
  "seq_io",
  "serde",
  "serde_json",
+ "thread_local",
  "tracing",
  "tracing-subscriber",
 ]

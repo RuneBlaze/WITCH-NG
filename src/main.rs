@@ -1,4 +1,5 @@
 mod adder;
+mod compact_printer;
 mod external;
 mod matching;
 mod melt;
