@@ -33,6 +33,7 @@ impl CompactHomologies {
         self.homology_hits.push(new_positions);
     }
 
+    // main logic in the module: convert positional homologies to "global" printtable homologies
     pub fn transl(self) -> FormattedHomologies {
         let k = self.num_columns;
         let _n = self.homology_hits.len();
@@ -45,21 +46,27 @@ impl CompactHomologies {
             .collect_vec();
         for (i, hits) in self.homology_hits.iter().enumerate() {
             let mut padding_needed = 0u32;
-            let mut last_hit = -1i32;
+            let mut last_hit = 0u32;
+            let mut first_hit = true; // true when we have only seen one non-negative value
             let is_singleton = is_singletons.get_mut(i).unwrap();
             for (j, &h) in hits.iter().enumerate() {
                 if h < 0 {
                     padding_needed += 1;
                     is_singleton.set(j as usize, true);
                 } else {
-                    paddings[h as usize] = padding_needed.max(paddings[h as usize]);
-                    last_hit = h;
+                    if first_hit {
+                        paddings[0] = padding_needed.max(paddings[0]);
+                        first_hit = false;
+                    } else {
+                        // padding_needed = padding_needed.min((h as u32) - last_hit);
+                        paddings[h as usize] = padding_needed.max(paddings[h as usize]);
+                    }
+                    last_hit = h as u32;
                     padding_needed = 0;
                 }
             }
             if padding_needed > 0 {
-                paddings[(last_hit + 1) as usize] =
-                    padding_needed.max(paddings[(last_hit + 1) as usize]);
+                paddings[k] = padding_needed.max(paddings[k]);
             }
         }
         let expanded_num_cols = paddings.iter().sum::<u32>() as usize + k;
@@ -103,13 +110,21 @@ impl CompactHomologies {
                             local_positions[i] = i as u32;
                         }
                     } else {
-                        let starting_pos = local_positions[seq_len - num_backpositions - 1];
+                        let starting_pos = (expanded_num_cols - num_backpositions) as u32;
                         for i in 0..num_backpositions {
                             local_positions[seq_len - num_backpositions + i] =
-                                starting_pos + (i + 1) as u32;
+                                starting_pos + (i) as u32;
                         }
                     }
                 }
+                // hack: push all the front singleton positions to the "true" front
+                local_positions
+                    .iter_mut()
+                    .enumerate()
+                    .take_while(|(j, p)| is_singletons[i][*j])
+                    .for_each(|(j, p)| {
+                        *p = j as u32;
+                    });
                 local_positions
             })
             .collect();

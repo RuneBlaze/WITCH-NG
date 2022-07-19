@@ -84,7 +84,7 @@ where
         .arg("--noali")
         .arg("--max")
         .arg("-E")
-        .arg("99999999")
+        .arg("999999999")
         .arg(hmm_path)
         .arg("-")
         .stdin(Stdio::piped())

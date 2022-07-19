@@ -1,7 +1,7 @@
 use ahash::{AHashMap, RandomState};
 use itertools::Itertools;
 use ndarray::{Array, ShapeBuilder};
-use std::collections::{BTreeSet};
+use std::collections::BTreeSet;
 use tracing::debug;
 
 struct CompressedSimilarities {

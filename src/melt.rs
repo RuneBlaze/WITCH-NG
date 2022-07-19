@@ -148,9 +148,17 @@ pub fn oneshot_melt(
     let subsets_root = outdir.join("subsets");
     let metadata_path = outdir.join("melt.json");
     create_dir_all(&subsets_root)?;
-    for (i, &(lb, ub)) in decomp.decomposition_ranges.iter().enumerate() {
-        let to_write = &records[lb..ub];
-        let mut writer = BufWriter::new(File::create(subsets_root.join(format!("{}.afa", i)))?);
+    // for (i, &(lb, ub)) in decomp.decomposition_ranges.iter().enumerate() {
+    //     let to_write = &records[lb..ub];
+    //     let mut writer = BufWriter::new(File::create(subsets_root.join(format!("{}.afa", i)))?);
+    //     for r in to_write {
+    //         r.write_wrap(&mut writer, 60)?;
+    //     }
+    // }
+
+    {
+        let to_write = &records[0..collection.ntaxa()];
+        let mut writer = BufWriter::new(File::create(subsets_root.join(format!("{}.afa", 0)))?);
         for r in to_write {
             r.write_wrap(&mut writer, 60)?;
         }
