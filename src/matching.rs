@@ -19,7 +19,7 @@ pub fn solve_matching_problem(
             let mut max = 0.0;
             let mut max_pt = 0u8;
             let w = weights
-                .get(&(i as u32, j as u32))
+                .get(&((i - 1) as u32, (j - 1) as u32))
                 .copied()
                 .unwrap_or_default();
             let values = [s[[i - 1, j - 1]] + w, s[[i - 1, j]], s[[i, j - 1]]];
@@ -50,5 +50,5 @@ pub fn solve_matching_problem(
             j -= 1;
         }
     }
-    return res;
+    res
 }

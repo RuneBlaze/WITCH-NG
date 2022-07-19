@@ -2,16 +2,16 @@ use crate::{external::hmmbuild, structures::*};
 use ahash::AHashSet;
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
-use ndarray::{Array, Axis, Ix2, ShapeBuilder, Slice};
+use ndarray::{Array, ShapeBuilder};
 use ogcat::ogtree::*;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::fasta::{Reader, Record};
-use serde::{Deserialize, Serialize};
+
 use std::{
     collections::BinaryHeap,
     fs::{create_dir_all, File},
-    io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    io::{BufWriter},
+    path::{PathBuf},
 };
 use tracing::info;
 
@@ -83,7 +83,7 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
             decomposition_ranges.push((lb, lb + tree_sizes[best_cut] as usize));
         }
         if size - tree_sizes[best_cut] as usize > 2 {
-            decomposition_ranges.push(((lb + tree_sizes[best_cut] as usize, ub)));
+            decomposition_ranges.push((lb + tree_sizes[best_cut] as usize, ub));
         }
         pq.push((
             tree_sizes[best_cut] as usize,
@@ -122,7 +122,7 @@ pub fn oneshot_melt(
     );
     let mut reader = Reader::from_path(input)?;
     let mut records_failable: Result<Vec<_>, _> =
-        reader.records().into_iter().into_iter().collect();
+        reader.records().into_iter().collect();
     let records = records_failable.as_mut().unwrap();
     let ts = &collection.taxon_set;
     records.sort_unstable_by_key(|r| {

@@ -1,5 +1,5 @@
-use core::num;
-use std::{collections::VecDeque, io::Write, path::PathBuf};
+
+use std::{io::Write, path::PathBuf};
 
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
@@ -36,7 +36,7 @@ impl CompactHomologies {
 
     pub fn transl(self) -> FormattedHomologies {
         let k = self.num_columns;
-        let n = self.homology_hits.len();
+        let _n = self.homology_hits.len();
         let mut paddings = vec![0u32; k + 1];
         let seq_lengths = self.homology_hits.iter().map(|v| v.len()).collect_vec();
         let mut is_singletons = self

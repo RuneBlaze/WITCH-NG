@@ -1,5 +1,5 @@
 use crate::{
-    compact_printer::{CompactHomologies, FormattedHomologies},
+    compact_printer::{CompactHomologies},
     external,
     matching::solve_matching_problem,
     structures::{AdderPayload, CrucibleCtxt},
@@ -8,10 +8,11 @@ use ahash::AHashMap;
 use anyhow::bail;
 use itertools::Itertools;
 use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, ParallelBridge, ParallelIterator,
+    IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
 };
 use seq_io::{fasta::OwnedRecord, BaseRecord};
 use std::{
+    collections::BTreeSet,
     fs::File,
     io::{BufReader, BufWriter},
     path::PathBuf,
@@ -34,7 +35,6 @@ impl AdderContext {
         let queries_failiable: Result<Vec<_>, _> =
             seq_io::fasta::Reader::new(File::open(&queries_path)?)
                 .records()
-                .into_iter()
                 .into_iter()
                 .collect();
         let queries = queries_failiable?;
@@ -72,7 +72,7 @@ impl AdderContext {
     pub fn hmm_path(&self, hmm_id: u32) -> PathBuf {
         self.base_dir
             .join("subsets")
-            .join(format!("{}.h3m", hmm_id))
+            .join(format!("{}.hmm", hmm_id))
     }
 
     pub fn process_one_hmm(
@@ -149,7 +149,6 @@ pub fn unoptimized_process_transposed_payload(ctxt: &AdderContext) -> anyhow::Re
 pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
     let ctxt = AdderContext::manual_construction(basedir)?;
     let subweights = unoptimized_process_transposed_payload(&ctxt)?;
-    println!("{:?}", subweights.weights[0]);
     let m = ctxt.hmm_ctxt.metadata[0].column_poitions.len();
     let dp_solutions: Vec<Vec<i32>> = subweights
         .weights

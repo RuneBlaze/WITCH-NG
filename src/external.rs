@@ -4,18 +4,15 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use seq_io::fasta::OwnedRecord;
 use seq_io::BaseRecord;
-use tracing::debug;
-use std::collections::HashMap;
-use std::fs::File;
 use std::process::Stdio;
-
-use std::{fs::rename, path::PathBuf, process::Command};
+use tracing::debug;
+use std::{path::PathBuf, process::Command};
 
 pub fn hmmalign<'a, R>(hmm_path: &PathBuf, seqs: R) -> anyhow::Result<Vec<u8>>
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("hmmalign")
+    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmalign")
         .arg("--informat")
         .arg("fasta")
         .arg("--outformat")
@@ -43,7 +40,7 @@ pub fn hmmbuild<'a, R>(seqs: R, name: &str, outpath: &PathBuf) -> anyhow::Result
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("hmmbuild")
+    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmbuild")
         .arg("--informat")
         .arg("afa")
         .arg("--ere")
@@ -79,21 +76,26 @@ pub fn hmmsearch<'a, R>(
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("hmmsearch")
+    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmsearch")
         .arg("--noali")
         .arg("--max")
+        .arg("-E")
+        .arg("99999999")
         .arg(hmm_path)
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
+    let mut cnt = 0;
     if let Some(mut stdin) = child.stdin.take() {
         for s in seqs {
             s.write(&mut stdin)?;
+            cnt += 1;
         }
     } else {
         bail!("Failed to get stdin handle");
     }
+    debug!("{} sequences written to hmmsearch", cnt);
     let output = child.wait_with_output()?;
     if !output.status.success() {
         bail!("hmmsearch failed: {:?}", output);

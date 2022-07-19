@@ -1,9 +1,14 @@
-use std::{cmp::Reverse, path::PathBuf, io::{BufReader, BufWriter}, fs::File};
+use std::{
+    cmp::Reverse,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 use ahash::AHashMap;
 use itertools::Itertools;
 use ordered_float::NotNan;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::fasta::OwnedRecord;
 use tracing::debug;
 
@@ -35,7 +40,6 @@ impl Default for BitscoreTracker {
 }
 
 impl BitscoreTracker {
-    
     pub fn calc_adjusted_scores(&self, ctxt: &ScoringCtxt) -> impl Iterator<Item = (u32, f64)> {
         let hmm_sizes = self
             .hmm_ids
@@ -69,18 +73,15 @@ impl BitscoreTracker {
 impl ScoringCtxt {
     pub fn manual_construction(base_dir: &PathBuf) -> anyhow::Result<Self> {
         let hmm_ctxt_path = base_dir.join("melt.json");
-        // let scores_path = base_dir.join("scores.json");
         let queries_path = base_dir.parent().unwrap().join("queries.fasta");
         let hmm_ctxt = serde_json::from_reader(BufReader::new(File::open(&hmm_ctxt_path)?))?;
-        // let transposed = AdderPayload::from_path(&scores_path)?.transpose(&hmm_ctxt);
         let queries_failiable: Result<Vec<_>, _> =
             seq_io::fasta::Reader::new(File::open(&queries_path)?)
                 .records()
                 .into_iter()
-                .into_iter()
                 .collect();
         let queries = queries_failiable?;
-        let mut seq_ids : AHashMap<String, u32> = AHashMap::new();
+        let mut seq_ids: AHashMap<String, u32> = AHashMap::new();
         for (i, q) in queries.iter().enumerate() {
             seq_ids.insert(String::from_utf8(q.head.clone())?, i as u32);
         }
@@ -98,25 +99,27 @@ impl ScoringCtxt {
             .join(format!("{}.hmm", hmm_id))
     }
     pub fn scores_path(&self) -> PathBuf {
-        self.base_dir
-            .join("scores.json")
+        self.base_dir.join("scores.json")
     }
 
     pub fn produce_payload(&self) -> anyhow::Result<AdderPayload> {
         let h = self.hmm_ctxt.num_hmms();
         let q = self.queries.len();
         let mut score_trackers = vec![BitscoreTracker::default(); q];
-        let hmmsearch_results : Vec<(u32, u32, f64)> = (0..h).into_par_iter().flat_map_iter(|i| {
-            debug!("scoring hmm {}", i);
-            let hmm_path = self.hmm_path(i as u32);
-            let search_res = hmmsearch(&hmm_path, self.queries.iter(), &self.seq_ids).expect("hmmsearch failed");
-            search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
-        }).collect();
+        let hmmsearch_results: Vec<(u32, u32, f64)> = (0..h)
+            .into_par_iter()
+            .flat_map_iter(|i| {
+                debug!("scoring hmm {}", i);
+                let hmm_path = self.hmm_path(i as u32);
+                let search_res = hmmsearch(&hmm_path, self.queries.iter(), &self.seq_ids)
+                    .expect("hmmsearch failed");
+                search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
+            })
+            .collect();
         for (hmm_id, seq_id, score) in hmmsearch_results {
             score_trackers[seq_id as usize].hmm_ids.push(hmm_id);
             score_trackers[seq_id as usize].bitscores.push(score);
         }
-        println!("{:?}", score_trackers[0]);
         let new_scores: Vec<Vec<(u32, f64)>> = score_trackers
             .par_iter()
             .map(|st| st.calc_adjusted_scores(self).collect_vec())
@@ -127,8 +130,7 @@ impl ScoringCtxt {
     }
 }
 
-
-pub fn oneshot_score_queries(basedir : &PathBuf) -> anyhow::Result<()> {
+pub fn oneshot_score_queries(basedir: &PathBuf) -> anyhow::Result<()> {
     let ctxt = ScoringCtxt::manual_construction(basedir)?;
     let payload = ctxt.produce_payload()?;
     let mut w = BufWriter::new(File::create(ctxt.scores_path())?);
