@@ -5,14 +5,14 @@ use regex::Regex;
 use seq_io::fasta::OwnedRecord;
 use seq_io::BaseRecord;
 use std::process::Stdio;
-use tracing::debug;
 use std::{path::PathBuf, process::Command};
+use tracing::debug;
 
 pub fn hmmalign<'a, R>(hmm_path: &PathBuf, seqs: R) -> anyhow::Result<Vec<u8>>
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmalign")
+    let mut child = Command::new("hmmalign")
         .arg("--informat")
         .arg("fasta")
         .arg("--outformat")
@@ -40,7 +40,9 @@ pub fn hmmbuild<'a, R>(seqs: R, name: &str, outpath: &PathBuf) -> anyhow::Result
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmbuild")
+    let mut child = Command::new("hmmbuild")
+        .arg("--cpu")
+        .arg("0")
         .arg("--informat")
         .arg("afa")
         .arg("--ere")
@@ -76,7 +78,9 @@ pub fn hmmsearch<'a, R>(
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
-    let mut child = Command::new("/Users/lbq/Downloads/hmmer-3.1b2/src/hmmsearch")
+    let mut child = Command::new("hmmsearch")
+        .arg("--cpu")
+        .arg("0")
         .arg("--noali")
         .arg("--max")
         .arg("-E")

@@ -10,8 +10,8 @@ use seq_io::fasta::{Reader, Record};
 use std::{
     collections::BinaryHeap,
     fs::{create_dir_all, File},
-    io::{BufWriter},
-    path::{PathBuf},
+    io::BufWriter,
+    path::PathBuf,
 };
 use tracing::info;
 
@@ -113,7 +113,7 @@ pub fn oneshot_melt(
     tree: &PathBuf,
     max_size: usize,
     outdir: &PathBuf,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<CrucibleCtxt> {
     let collection = TreeCollection::from_newick(tree).expect("Failed to read tree");
     let decomp = hierarchical_decomp(&collection.trees[0], max_size);
     info!(
@@ -121,8 +121,7 @@ pub fn oneshot_melt(
         "decomposed input tree"
     );
     let mut reader = Reader::from_path(input)?;
-    let mut records_failable: Result<Vec<_>, _> =
-        reader.records().into_iter().collect();
+    let mut records_failable: Result<Vec<_>, _> = reader.records().into_iter().collect();
     let records = records_failable.as_mut().unwrap();
     let ts = &collection.taxon_set;
     records.sort_unstable_by_key(|r| {
@@ -189,5 +188,5 @@ pub fn oneshot_melt(
     }
     let ctxt = CrucibleCtxt::new(metadata);
     serde_json::to_writer(&mut writer, &ctxt)?;
-    Ok(())
+    Ok(ctxt)
 }

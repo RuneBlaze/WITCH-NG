@@ -1,4 +1,3 @@
-
 use std::{io::Write, path::PathBuf};
 
 use fixedbitset::FixedBitSet;

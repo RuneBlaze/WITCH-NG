@@ -10,7 +10,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::fasta::OwnedRecord;
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     external::hmmsearch,
@@ -87,6 +87,30 @@ impl ScoringCtxt {
         }
         Ok(Self {
             base_dir: base_dir.to_owned(),
+            hmm_ctxt,
+            queries,
+            seq_ids,
+        })
+    }
+
+    pub fn from_ehmms_ctxt(
+        base_dir: PathBuf,
+        hmm_ctxt: CrucibleCtxt,
+        queries_path: &PathBuf,
+    ) -> anyhow::Result<Self> {
+        let queries_failiable: Result<Vec<_>, _> =
+            seq_io::fasta::Reader::new(File::open(&queries_path)?)
+                .records()
+                .into_iter()
+                .collect();
+        let queries = queries_failiable?;
+        info!("read {} query sequences", queries.len());
+        let mut seq_ids: AHashMap<String, u32> = AHashMap::new();
+        for (i, q) in queries.iter().enumerate() {
+            seq_ids.insert(String::from_utf8(q.head.clone())?, i as u32);
+        }
+        Ok(Self {
+            base_dir,
             hmm_ctxt,
             queries,
             seq_ids,

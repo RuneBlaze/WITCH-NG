@@ -1,22 +1,24 @@
 use crate::{
-    compact_printer::{CompactHomologies},
+    compact_printer::CompactHomologies,
     external,
     matching::solve_matching_problem,
+    score_calc::ScoringCtxt,
     structures::{AdderPayload, CrucibleCtxt},
 };
 use ahash::AHashMap;
 use anyhow::bail;
 use itertools::Itertools;
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
-};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use seq_io::{fasta::OwnedRecord, BaseRecord};
 use std::{
-    collections::BTreeSet,
+    cell::RefCell,
     fs::File,
     io::{BufReader, BufWriter},
     path::PathBuf,
+    sync::Arc,
 };
+use thread_local::ThreadLocal;
+use tracing::info;
 
 pub struct AdderContext {
     base_dir: PathBuf,
@@ -26,6 +28,20 @@ pub struct AdderContext {
 }
 
 impl AdderContext {
+    pub fn from_scoring_ctxt(
+        base_dir: &PathBuf,
+        scorer: ScoringCtxt,
+        payload: AdderPayload,
+    ) -> anyhow::Result<Self> {
+        let transposed = payload.transpose(&scorer.hmm_ctxt);
+        let (queries, hmm_ctxt) = (scorer.queries, scorer.hmm_ctxt);
+        Ok(Self {
+            base_dir: base_dir.to_owned(),
+            hmm_ctxt,
+            queries,
+            transposed_scores: transposed,
+        })
+    }
     pub fn manual_construction(base_dir: &PathBuf) -> anyhow::Result<Self> {
         let hmm_ctxt_path = base_dir.join("melt.json");
         let scores_path = base_dir.join("scores.json");
@@ -55,6 +71,7 @@ impl AdderContext {
     }
 }
 
+#[derive(Debug)]
 pub struct Subweights {
     pub weights: Vec<AHashMap<(u32, u32), f64>>,
 }
@@ -64,6 +81,14 @@ impl Subweights {
         let n = ctxt.queries.len();
         Subweights {
             weights: vec![AHashMap::new(); n],
+        }
+    }
+
+    pub fn merge_in(&mut self, rhs: Subweights) {
+        for (w, r) in self.weights.iter_mut().zip(rhs.weights) {
+            for (k, v) in r {
+                w.entry(k).and_modify(|e| *e += v).or_insert(v);
+            }
         }
     }
 }
@@ -100,10 +125,6 @@ impl AdderContext {
             let seq_weight = hits[record_id].1;
             let mut residue_ix = 0u32; // which character of the query are we at?
             let mut column_ix = 0u32; // which column of the consensus are we at?
-            assert_eq!(
-                String::from_utf8(self.queries[seq_id as usize].head.clone())?,
-                String::from_utf8(record.head().iter().copied().collect_vec())?
-            );
             for &c in record.seq_lines().flatten() {
                 match c {
                     b'.' => {
@@ -139,15 +160,35 @@ impl AdderContext {
 }
 
 pub fn unoptimized_process_transposed_payload(ctxt: &AdderContext) -> anyhow::Result<Subweights> {
+    let tls = Arc::new(ThreadLocal::new());
+    (0..ctxt.hmm_ctxt.num_hmms())
+        .into_par_iter()
+        .for_each(|hmm_id| {
+            let local = tls.clone();
+            let subweights = local.get_or(|| RefCell::new(Subweights::from_ctxt(ctxt)));
+            let mut borrowed = subweights.borrow_mut();
+            ctxt.process_one_hmm(hmm_id as u32, &mut borrowed)
+                .expect("Failed to run hmmalign.");
+        });
     let mut subweights = Subweights::from_ctxt(ctxt);
-    for i in 0..ctxt.hmm_ctxt.num_hmms() {
-        ctxt.process_one_hmm(i as u32, &mut subweights)?;
-    }
+    Arc::try_unwrap(tls).unwrap().into_iter().for_each(|s| {
+        subweights.merge_in(s.into_inner());
+    });
     Ok(subweights)
 }
 
 pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
     let ctxt = AdderContext::manual_construction(basedir)?;
+    let default_output_path = ctxt.default_output_path();
+    let base_alignment_path = ctxt.base_alignment_path();
+    add_queries(ctxt, &default_output_path, &base_alignment_path)
+}
+
+pub fn add_queries(
+    ctxt: AdderContext,
+    outfile: &PathBuf,
+    base_alignment_path: &PathBuf,
+) -> anyhow::Result<()> {
     let subweights = unoptimized_process_transposed_payload(&ctxt)?;
     let m = ctxt.hmm_ctxt.metadata[0].column_poitions.len();
     let dp_solutions: Vec<Vec<i32>> = subweights
@@ -156,17 +197,21 @@ pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
         .enumerate()
         .map(|(i, w)| {
             let n = ctxt.queries[i].seq.len();
-            solve_matching_problem((n, m), &w)
+            solve_matching_problem((n, m), w)
         })
         .collect();
     let mut c_homologies =
         CompactHomologies::new(ctxt.hmm_ctxt.num_consensus_columns(), dp_solutions);
     c_homologies.append_consensus_column_hits();
     let hydrated_homologies = c_homologies.transl();
-    let mut output_writer = BufWriter::new(File::create(ctxt.default_output_path())?);
+    info!(
+        "output homologies formatted, output alignment will have {} columns",
+        hydrated_homologies.num_columns
+    );
+    let mut output_writer = BufWriter::new(File::create(outfile)?);
     hydrated_homologies.write_all_sequences(
         &ctxt.queries,
-        &ctxt.base_alignment_path(),
+        base_alignment_path,
         &mut output_writer,
     )?;
     Ok(())
