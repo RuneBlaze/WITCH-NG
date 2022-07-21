@@ -8,7 +8,10 @@ use std::{
 use ahash::AHashMap;
 use itertools::Itertools;
 use ordered_float::NotNan;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::{
+    iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    slice::ParallelSlice,
+};
 use seq_io::fasta::OwnedRecord;
 use tracing::{debug, info};
 
@@ -130,16 +133,29 @@ impl ScoringCtxt {
         let h = self.hmm_ctxt.num_hmms();
         let q = self.queries.len();
         let mut score_trackers = vec![BitscoreTracker::default(); q];
-        let hmmsearch_results: Vec<(u32, u32, f64)> = (0..h)
-            .into_par_iter()
-            .flat_map_iter(|i| {
-                debug!("scoring hmm {}", i);
-                let hmm_path = self.hmm_path(i as u32);
-                let search_res = hmmsearch(&hmm_path, self.queries.iter(), &self.seq_ids)
-                    .expect("hmmsearch failed");
-                search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
+        let hmmsearch_results: Vec<(u32, u32, f64)> = self
+            .queries
+            .par_chunks(500)
+            .flat_map(|chunk| {
+                (0..h).into_par_iter().flat_map_iter(|i| {
+                    debug!("scoring hmm {}", i);
+                    let hmm_path = self.hmm_path(i as u32);
+                    let search_res = hmmsearch(&hmm_path, chunk.iter(), &self.seq_ids)
+                        .expect("hmmsearch failed");
+                    search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
+                })
             })
             .collect();
+        // let hmmsearch_results: Vec<(u32, u32, f64)> = (0..h)
+        //     .into_par_iter()
+        //     .flat_map_iter(|i| {
+        //         debug!("scoring hmm {}", i);
+        //         let hmm_path = self.hmm_path(i as u32);
+        //         let search_res = hmmsearch(&hmm_path, self.queries.iter(), &self.seq_ids)
+        //             .expect("hmmsearch failed");
+        //         search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
+        //     })
+        //     .collect();
         for (hmm_id, seq_id, score) in hmmsearch_results {
             score_trackers[seq_id as usize].hmm_ids.push(hmm_id);
             score_trackers[seq_id as usize].bitscores.push(score);

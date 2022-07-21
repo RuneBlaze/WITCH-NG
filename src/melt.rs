@@ -61,7 +61,7 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
         if non_leaf {
             assert_ne!(best_inbalance, u64::MAX, "No cut found");
         } else {
-            break;
+            continue;
         }
         for a in tree.ancestors(best_cut) {
             if a == root {

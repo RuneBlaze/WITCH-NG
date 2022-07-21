@@ -115,7 +115,11 @@ impl AdderContext {
             .iter()
             .map(|&(seq_id, _)| &self.queries[seq_id as usize]);
         let hmm_path = self.hmm_path(hmm_id);
-        let raw_afa = external::hmmalign(&hmm_path, queries_for_hmm)?;
+        let raw_afa = queries_for_hmm
+            .chunks(500)
+            .into_iter()
+            .flat_map(|c| external::hmmalign(&hmm_path, c).expect("hmmalign failed"))
+            .collect_vec();
         let raw_afa_view: &[u8] = &raw_afa;
         let mut reader = seq_io::fasta::Reader::new(raw_afa_view);
         let mut record_id = 0usize;
