@@ -1,14 +1,13 @@
 Crucible
 ================
 
-WIP efficient backend for [WITCH](https://github.com/c5shen/WITCH).
+Accurate, reasonably scalable alignment of fragments to reference alignments. An implementation of [WITCH](https://github.com/c5shen/WITCH), useful when:
 
-## "Melt" structure
+ - sequences with a lot of fragments need to be aligned (in other words, accurate MSA estimation under sequence length heterogeneity)
+ - aligning fragments to an existing reference alignment (for phylogenetic placement, etc.)
 
-```
-$root_dir/
-  subsets/
-    0.afa
-    0.hmm
-  melt.json
-```
+## Quick start
+
+Install WITCH first.
+
+## Misc

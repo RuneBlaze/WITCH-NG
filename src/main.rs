@@ -1,3 +1,8 @@
+//! # Crucible
+//!
+//! `crucible` aims to be an efficient implementation of the WITCH algorithm
+//! for aligning fragments to an existing alignment (called a "reference"
+//! or "backbone" alignment).
 mod adder;
 mod combined;
 mod compact_printer;
@@ -25,17 +30,17 @@ struct Args {
 
 #[derive(Subcommand, Debug, PartialEq, Hash)]
 enum SubCommand {
-    /// Decompose input alignment by a tree into MSAs ready to become HMMs
-    Melt {
-        #[clap(short, long)]
-        input: PathBuf,
-        #[clap(short, long)]
-        tree: PathBuf,
-        #[clap(short, long)]
-        outdir: PathBuf,
-        #[clap(short = 's', long)]
-        max_size: usize,
-    },
+    // /// Decompose input alignment by a tree into MSAs ready to become HMMs
+    // Melt {
+    //     #[clap(short, long)]
+    //     input: PathBuf,
+    //     #[clap(short, long)]
+    //     tree: PathBuf,
+    //     #[clap(short, long)]
+    //     outdir: PathBuf,
+    //     #[clap(short = 's', long)]
+    //     max_size: usize,
+    // },
 
     Add {
         /// Path to query sequences (fragments) in FASTA format
@@ -64,16 +69,16 @@ enum SubCommand {
         threads: Option<usize>,
     },
 
-    Score {
-        #[clap(short, long)]
-        root: PathBuf,
-    },
+    // Score {
+    //     #[clap(short, long)]
+    //     root: PathBuf,
+    // },
 
-    /// Receive payload from WITCH frontend and merges in the query sequences
-    Dance {
-        #[clap(short, long)]
-        root: PathBuf,
-    },
+    // /// Receive payload from WITCH frontend and merges in the query sequences
+    // Dance {
+    //     #[clap(short, long)]
+    //     root: PathBuf,
+    // },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -81,20 +86,20 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     tracing_subscriber::fmt::init();
     match args.cmd {
-        SubCommand::Melt {
-            input,
-            tree,
-            outdir,
-            max_size,
-        } => {
-            oneshot_melt(&input, &tree, max_size, &outdir)?;
-        }
-        SubCommand::Score { root } => {
-            oneshot_score_queries(&root)?;
-        }
-        SubCommand::Dance { root } => {
-            oneshot_add_queries(&root)?;
-        }
+        // SubCommand::Melt {
+        //     input,
+        //     tree,
+        //     outdir,
+        //     max_size,
+        // } => {
+        //     oneshot_melt(&input, &tree, max_size, &outdir)?;
+        // }
+        // SubCommand::Score { root } => {
+        //     oneshot_score_queries(&root)?;
+        // }
+        // SubCommand::Dance { root } => {
+        //     oneshot_add_queries(&root)?;
+        // }
         SubCommand::Add {
             input,
             backbone,

@@ -6,12 +6,15 @@ use ndarray::{Array, ShapeBuilder};
 use ogcat::ogtree::*;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::fasta::{Reader, Record};
+use thread_local::ThreadLocal;
 
 use std::{
+    cell::RefCell,
     collections::BinaryHeap,
     fs::{create_dir_all, File},
     io::BufWriter,
     path::PathBuf,
+    sync::Arc,
 };
 use tracing::info;
 
@@ -179,21 +182,43 @@ pub fn oneshot_melt(
         });
 
     let mut writer = BufWriter::new(File::create(metadata_path)?);
-    let mut metadata: Vec<HmmMeta> = vec![];
-    let mut buf = vec![0u32; k];
-    for &decomp_range in &decomp.decomposition_ranges {
-        CrucibleCtxt::retrieve_nchars_noalloc(&nchars_prefix, decomp_range, &mut buf);
-        let mut nonzero_counts: Vec<u32> = vec![];
-        let mut column_positions: Vec<usize> = vec![];
-        for (i, &c) in buf.iter().enumerate() {
-            if c > 0 {
-                nonzero_counts.push(c);
-                column_positions.push(i);
+    // let mut metadata: Vec<HmmMeta> = vec![];
+    // let mut buf = vec![0u32; k];
+    // TODO: very probably not the best way to reuse buffer
+    let t_buf = Arc::new(ThreadLocal::new());
+    let metadata: Vec<HmmMeta> = decomp
+        .decomposition_ranges
+        .par_iter()
+        .map(|&decomp_range| {
+            let local = t_buf.clone();
+            let local_value = local.get_or(|| RefCell::new(vec![0u32; k]));
+            let mut buf = local_value.borrow_mut();
+            CrucibleCtxt::retrieve_nchars_noalloc(&nchars_prefix, decomp_range, &mut buf);
+            let mut nonzero_counts: Vec<u32> = vec![];
+            let mut column_positions: Vec<usize> = vec![];
+            for (i, &c) in buf.iter().enumerate() {
+                if c > 0 {
+                    nonzero_counts.push(c);
+                    column_positions.push(i);
+                }
             }
-        }
-        let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
-        metadata.push(hmm);
-    }
+            let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
+            hmm
+        })
+        .collect();
+    // for &decomp_range in &decomp.decomposition_ranges {
+    //     CrucibleCtxt::retrieve_nchars_noalloc(&nchars_prefix, decomp_range, &mut buf);
+    //     let mut nonzero_counts: Vec<u32> = vec![];
+    //     let mut column_positions: Vec<usize> = vec![];
+    //     for (i, &c) in buf.iter().enumerate() {
+    //         if c > 0 {
+    //             nonzero_counts.push(c);
+    //             column_positions.push(i);
+    //         }
+    //     }
+    //     let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
+    //     metadata.push(hmm);
+    // }
     let ctxt = CrucibleCtxt::new(metadata);
     serde_json::to_writer(&mut writer, &ctxt)?;
     Ok(ctxt)

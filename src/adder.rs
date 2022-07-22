@@ -51,7 +51,6 @@ impl AdderContext {
         let queries_failiable: Result<Vec<_>, _> =
             seq_io::fasta::Reader::new(File::open(&queries_path)?)
                 .records()
-                .into_iter()
                 .collect();
         let queries = queries_failiable?;
         Ok(Self {

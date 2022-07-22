@@ -121,7 +121,7 @@ impl CompactHomologies {
                 local_positions
                     .iter_mut()
                     .enumerate()
-                    .take_while(|(j, p)| is_singletons[i][*j])
+                    .take_while(|(j, _p)| is_singletons[i][*j])
                     .for_each(|(j, p)| {
                         *p = j as u32;
                     });
