@@ -135,7 +135,7 @@ impl ScoringCtxt {
         let mut score_trackers = vec![BitscoreTracker::default(); q];
         let hmmsearch_results: Vec<(u32, u32, f64)> = self
             .queries
-            .par_chunks(500)
+            .par_chunks(1000)
             .flat_map(|chunk| {
                 (0..h).into_par_iter().flat_map_iter(|i| {
                     debug!("scoring hmm {}", i);
