@@ -1,7 +1,11 @@
 [package]
 name = "crucible"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
+
+[[bin]]
+name = "witch-ng"
+path = "src/main.rs"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
