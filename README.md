@@ -1,7 +1,7 @@
 WITCH-NG
 ================
 
-[![shields.io](https://img.shields.io/badge/recommended_version-0.0.2-blue?style=for-the-badge)](https://github.com/RuneBlaze/WITCH-NG/releases/tag/v0.0.2)
+[![shields.io](https://img.shields.io/badge/recommended_version-0.0.2-blue?style=for-the-badge)](https://github.com/RuneBlaze/WITCH-NG/releases/tag/v0.0.2) [![shields.io](https://img.shields.io/badge/research_paper-biorxiv_preprint-blue?style=for-the-badge)](https://www.biorxiv.org/content/10.1101/2022.08.08.503232v1)
 
 Fast, efficient sequence adding to existing alignments, a somewhat optimized implementation of [WITCH](https://github.com/c5shen/WITCH).
 
