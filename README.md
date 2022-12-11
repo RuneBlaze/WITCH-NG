@@ -38,3 +38,7 @@ cargo build --release
 
  - This project obvious reuses stuff from [WITCH](https://github.com/c5shen/WITCH).
  - This project uses [ogcat](https://github.com/RuneBlaze/ogcat), which in turn translates code from [TreeSwift](https://niema.net/TreeSwift/).
+
+## License
+
+WITCH-NG is available under the GPLv3 LICENSE.
