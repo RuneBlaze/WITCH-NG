@@ -9,30 +9,31 @@ Fast, efficient sequence adding to existing alignments, a somewhat optimized imp
 
 First some requirements:
 
- - `HMMER` (in particular `hmmbuild`, `hmmsearch`, `hmmalign`) must be installed (and discoverable by PATH). This requirement will be lifted in the future, but right now `v3.1b2` or newer versions of HMMER should all work.
- - A backbone ("reference") alignment and a backbone tree on this alignment must already exist to add the query sequences. Again, this requirement will be lifted in the future for full-stack analyses.
+ - If you're looking for pre-built versions of WITCH-NG, you can find them in the [releases](https://github.com/RuneBlaze/WITCH-NG/releases/) section of the GitHub repository. If you prefer to build the software from scratch, instructions on how to do so can be found in [this section](#building-witch-ng-from-scratch). Please note that WITCH-NG requires HMMER, so it is not currently supported on Windows machines. However, it may be possible to use WITCH-NG on Windows Subsystem for Linux (WSL) with some additional compilation steps. If you're using Apple Silicon, you should prefer the `aarch64-apple-darwin` binary. The following instructions assume that you have the binary installed and it can be invoked using the command `witch-ng`.
+ - `HMMER` (in particular `hmmbuild`, `hmmsearch`, `hmmalign`) must be installed and discoverable by PATH. The easiest way if you don't have them can be through [package managers](http://hmmer.org/documentation.html). This requirement will be lifted in the future, but right now `v3.1b2` or newer versions of HMMER should all work.
+ - A backbone ("reference") alignment and a backbone tree on this alignment must already exist to add the query sequences. This requirement will be lifted in the future for full-stack analyses.
 
-Prebuilt binaries of WITCH-NG can be found in [releases](https://github.com/RuneBlaze/WITCH-NG/releases/), or see the "Building WITCH-NG from Scratch" section for building instructions. After installing the standalone binary, and preparing files such as these:
+ After having all these ready, and preparing the input files like these:
 
  - `queries.fa`: the path to the query sequences (in unaligned FASTA format)
  - `backbone.afa`: the path to the backbone alignment (aligned FASTA)
  - `backbone.tre`: the path to the backbone tree (single-line Newick tree inferred on `backbone.afa`)
 
-We also provide a set of example files for the sake of
-illustration. Try the following command to access them:
+We also provide a set of three example files for the sake of trying WITCH-NG out. To download the example files:
 
-```shell
-# for directly accessing the example files
+```bash
+# for directly using the example files
 git clone https://gist.github.com/RuneBlaze/272e086436190557b715dd980fd39903 witch-ng-examples && cd witch-ng-examples
 ```
 
-the following command can be run:
+after preparing the input, the following command can be run:
 
-```shell
+```bash
+# using the example files, this command took less than 1 minute on my laptop
 witch-ng add -i queries.fa -b backbone.afa -t backbone.tre -o extended_alignment.afa
 ```
 
-after which the output `extended_alignment.afa` contains an aligned version of all sequences. Note that we adopt the UPP convention of extended alignments, in which lower-case letters denote singleton insertion sites (i.e., anything lower-case is not homologous to anything). Future work will allow automatic masking of the singleton insertion sites.
+The output `extended_alignment.afa` then contains an aligned version of all sequences. Note that we adopt the UPP convention of extended alignments, in which lower-case letters denote singleton insertion sites (i.e., anything lower-case is not homologous to anything). Future work will allow automatic masking of the singleton insertion sites.
 
 ## Building WITCH-NG from Scratch
 
