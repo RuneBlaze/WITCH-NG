@@ -12,7 +12,7 @@ First some requirements:
  - `HMMER` (in particular `hmmbuild`, `hmmsearch`, `hmmalign`) must be installed (and discoverable by PATH). This requirement will be lifted in the future, but right now `v3.1b2` or newer versions of HMMER should all work.
  - A backbone ("reference") alignment and a backbone tree on this alignment must already exist to add the query sequences. Again, this requirement will be lifted in the future for full-stack analyses.
 
-Prebuilt binaries of WITCH-NG can be found in [releases](https://github.com/RuneBlaze/WITCH-NG/releases/), or see the "Building WITCH-NG from Scratch" section for building instructions. After installing the standalone binary, and preparing files such as these:
+Prebuilt binaries of WITCH-NG can be found in [releases](https://github.com/RuneBlaze/WITCH-NG/releases/), or see [this section](#building-witch-ng-from-scratch) for building it from scratch. After installing the standalone binary, and preparing files such as these:
 
  - `queries.fa`: the path to the query sequences (in unaligned FASTA format)
  - `backbone.afa`: the path to the backbone alignment (aligned FASTA)
