@@ -202,8 +202,8 @@ pub fn oneshot_melt(
                     column_positions.push(i);
                 }
             }
-            let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
-            hmm
+            
+            HmmMeta::new(decomp_range, nonzero_counts, column_positions)
         })
         .collect();
     // for &decomp_range in &decomp.decomposition_ranges {
