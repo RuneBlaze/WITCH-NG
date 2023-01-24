@@ -7,10 +7,8 @@ Fast, efficient sequence adding to existing alignments, a somewhat optimized imp
 
 ## Quick start
 
-To outline the steps to get a toy example running:
-
- - This software, WITCH-NG, need to be installed. You can find prebuilt binaries in the [releases](https://github.com/RuneBlaze/WITCH-NG/releases/). If you prefer to build the software from scratch, instructions on how to do so can be found in [this section](#building-witch-ng-from-scratch). Please note that WITCH-NG requires HMMER, so WITCH-NG is not currently supported on Windows machines. However, it may be possible to use WITCH-NG on Windows Subsystem for Linux (WSL) by compiling it. If you're using Apple Silicon, you should prefer the `aarch64-apple-darwin` prebuilt binary. The following instructions assume that `witch-ng` is under the current working directory
- - `HMMER` (in particular `hmmbuild`, `hmmsearch`, `hmmalign`) must be installed and discoverable by PATH. The easiest way if you don't have them can be through [package managers](http://hmmer.org/documentation.html). This requirement will be lifted in the future, but right now `v3.1b2` or newer versions of HMMER should all work.
+ - You can find prebuilt binaries for this software, WITCH-NG, in the [releases](https://github.com/RuneBlaze/WITCH-NG/releases/) section. If you prefer to build the software from scratch, instructions on how to do so can be found in [this section](#building-witch-ng-from-scratch). Please note that WITCH-NG requires HMMER, so WITCH-NG is not currently supported on Windows machines. However, it may be possible to use WITCH-NG on Windows Subsystem for Linux (WSL) by compiling it. If you're using Apple Silicon, you should prefer the `aarch64-apple-darwin` prebuilt binary. The following instructions assume that `witch-ng` is under the current working directory
+ - `HMMER` (in particular `hmmbuild`, `hmmsearch`, `hmmalign`) must also be installed and discoverable by PATH. The easiest way if you don't have them can be through [package managers](http://hmmer.org/documentation.html). This requirement will be lifted in the future, but right now `v3.1b2` or newer versions of HMMER should all work.
  - A backbone ("reference") alignment and a backbone tree on this alignment must already exist to add the query sequences. This requirement will be lifted in the future for align-from-scratch analyses. Assume that you have these files aligned like this:
 
  - `queries.fa`: the path to the query sequences (in unaligned FASTA format)
