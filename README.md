@@ -20,6 +20,8 @@ We also provide an example version of the above files for the sake of trying WIT
 ```bash
 # for directly using the example files
 git clone https://gist.github.com/RuneBlaze/272e086436190557b715dd980fd39903 witch-ng-examples && cd witch-ng-examples
+
+# one can also download them manually at https://gist.github.com/RuneBlaze/272e086436190557b715dd980fd39903
 ```
 
 After these input are gathered, the following command can be run:
