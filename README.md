@@ -19,19 +19,35 @@ We also provide an example version of the above files for the sake of trying WIT
 
 ```bash
 # for directly using the example files
-git clone https://gist.github.com/RuneBlaze/272e086436190557b715dd980fd39903 witch-ng-examples && cd witch-ng-examples
+git clone https://gist.github.com/RuneBlaze/7d480dcedc032b4a476b06959410916b witch-ng-examples && cd witch-ng-examples
 
-# one can also download them manually at https://gist.github.com/RuneBlaze/272e086436190557b715dd980fd39903
+# one can also download them manually at https://gist.github.com/RuneBlaze/7d480dcedc032b4a476b06959410916b
 ```
 
 After these input are gathered, the following command can be run:
 
 ```bash
-# using the example files, this command took less than 1 minute on my laptop
+# using the example files, this command took less than 4 minute on my laptop
 witch-ng add -i queries.fa -b backbone.afa -t backbone.tre -o extended_alignment.afa
 ```
 
+The on-screen logs from WITCH-NG will be something like this, with the output file `extended_alignment.afa`:
+
+```bash
+2023-01-25T02:59:28.499149Z  INFO witch_ng::melt: decomposed input tree num_subsets=275
+2023-01-25T02:59:31.284642Z  INFO witch_ng::score_calc: read 13950 query sequences
+2023-01-25T03:02:36.910727Z  INFO witch_ng::combined: all-against-all hmmsearch (with adjusted bitscore calculation) took 185.626686208s
+2023-01-25T03:02:43.067799Z  INFO witch_ng::adder: output homologies formatted, output alignment will have 874 columns
+2023-01-25T03:02:43.125048Z  INFO witch_ng: total elapsed time: 194.624788166s
+```
+
 The output `extended_alignment.afa` then contains an aligned version of all sequences. Note that we adopt the UPP convention of extended alignments, in which lower-case letters denote singleton insertion sites (i.e., anything lower-case is not homologous to anything). Future work will allow automatic masking of the singleton insertion sites.
+
+## Options for `witch-ng add`
+
+### `--threads <THREADS>`
+
+Set level of parallelism; defaults to number of logical cores.
 
 ## Building WITCH-NG from Scratch
 
