@@ -5,8 +5,8 @@ Fast, efficient sequence adding to existing alignments, a somewhat optimized imp
 
 ## Use cases
 
- - Instead of `hmmbuild+hmmalign`, run `witch-ng add` to add sequences to an existing alignment. When the sequences are quite diverse, the output alignment is likely more accurate.
- - For *de novo* sequence alignment with diverse input lengths (e.g., some sequences ~500NT in length and others ~1500NT), execute `witch-ng msa`. The output alignment should match or surpass the accuracy of `mafft` or [MAGUS](https://github.com/vlasmirnov/MAGUS), particularly with sequences that are evolutionarily distant from each other.
+ - Instead of `hmmbuild+hmmalign`, the `witch-ng add` subcommand can add sequences to an existing alignment. When the sequences are quite diverse, the output alignment is likely more accurate.
+ - For *de novo* sequence alignment with diverse input lengths (e.g., some sequences ~500NT in length and others ~1500NT), `witch-ng msa` can scalably align sequences. The output alignment should match or surpass the accuracy of `mafft` or [MAGUS](https://github.com/vlasmirnov/MAGUS), particularly with sequences that are evolutionarily distant from each other.
 
 ## Quick start
 
