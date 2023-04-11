@@ -54,7 +54,7 @@ curl -L https://github.com/RuneBlaze/WITCH-NG/releases/download/v0.0.2/witch-ng-
 ```
 
 
-After getting the executable `witch-ng` under the current directory, the following command can be run
+After ensuring that the executable `witch-ng` is under the current directory, the following command can be run
 
 ```bash
 ./witch-ng add -i queries.fa -b backbone.afa -t backbone.tre -o extended_alignment.afa
