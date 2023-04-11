@@ -46,11 +46,18 @@ Prebuilt executables for this software, WITCH-NG, can be found in the [releases]
 | [`witch-ng-aarch64-apple-darwin.tar.gz`](https://github.com/RuneBlaze/WITCH-NG/releases/download/v0.0.2/witch-ng-aarch64-apple-darwin.tar.gz)              | macOS (Apple Silicon)            |
 | [`witch-ng-x86_64-apple-darwin.tar.gz`](https://github.com/RuneBlaze/WITCH-NG/releases/download/v0.0.2/witch-ng-x86_64-apple-darwin.tar.gz)                | macOS (x86_64)                   |
 
-
-After getting the executable `witch-ng`, the following command can be run
+For example, if you are on a Linux x86_64 machine, you can install WITCH-NG with the following command:
 
 ```bash
-witch-ng add -i queries.fa -b backbone.afa -t backbone.tre -o extended_alignment.afa
+curl -L https://github.com/RuneBlaze/WITCH-NG/releases/download/v0.0.2/witch-ng-x86_64-unknown-linux-musl.tar.gz | tar -xz
+./witch-ng --help
+```
+
+
+After getting the executable `witch-ng` under the current directory, the following command can be run
+
+```bash
+./witch-ng add -i queries.fa -b backbone.afa -t backbone.tre -o extended_alignment.afa
 # using the example files, this command took less than 4 minute on my laptop
 ```
 
