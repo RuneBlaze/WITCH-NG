@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+references:
+  - type: article
+    id: witch-ng
+    title: "WITCH-NG: efficient and accurate alignment of datasets with sequence length heterogeneity"
+    author:
+      - family-names: Liu
+        given-names: Baqiao
+      - family-names: Warnow
+        given-names: Tandy
+    journal: Bioinformatics Advances
+    volume: 3
+    issue: 1
+    pages: vbad024
+    year: 2023
+    publisher: Oxford University Press
