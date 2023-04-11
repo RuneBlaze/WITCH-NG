@@ -18,7 +18,7 @@ If you can run `hmmsearch -h`, `hmmalign -h`, and `hmmbuild -h` from the command
 
 ### Input files
 
- - WITCH-NG is a direct replacement for `hmmbuild` paired with `hmmalign`, but can also be used to align sequences from scratch. Same as `hmmbuild`+`hmmalign`, one must have a reference alignment ("backbone") and a set of query unaligned sequences ("queries") ready. The goal is to "add" the query sequences to the backbone alignment.
+ - WITCH-NG is a replacement for `hmmbuild` paired with `hmmalign`, but can also be used to align sequences from scratch. Same as `hmmbuild`+`hmmalign`, one must have a reference alignment ("backbone") and a set of query unaligned sequences ("queries") ready. The goal is to "add" the query sequences to the backbone alignment.
  - WITCH-NG, in addition to requiring the backbone MSA and the query sequences, requires a tree to be inferred on the backbone alignment. This "backbone tree" can be inferred either through FastTree or RAxML. The tree must be in the Newick format, and must be single-line
 
 The rest of this README assumes the following files have been prepared and ready:
