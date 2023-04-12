@@ -53,10 +53,10 @@ enum SubCommand {
         /// Forgo outputting the backbone; must go with "--trim"
         #[clap(long)]
         only_queries: bool,
-        /// The HMM decomposition size lower bound; how many sequences must each HMM contain? Defaults to 2
+        /// The HMM decomposition size lower bound; how many sequences must each HMM contain? Defaults to 10
         #[clap(long)]
         hmm_size_lb: Option<usize>,
-        /// Specify to use an IO bound strategy; make each worker use two threads, one thread for IO
+        /// Specify to use a strategy for IO bound situations; make each worker use two threads, with one thread for IO
         #[clap(long)]
         io_bound: bool,
         /// Enable checkpointing in the hmmsearch stage; the checkpoint file will be a suffix of the output file
@@ -75,6 +75,7 @@ fn main() -> anyhow::Result<()> {
     let now = Instant::now();
     let args = Args::parse();
     tracing_subscriber::fmt::init();
+    debug!("command: {:?}", &args.cmd);
     match args.cmd {
         SubCommand::Add {
             input,
@@ -91,6 +92,18 @@ fn main() -> anyhow::Result<()> {
             progress,
         } => {
             let checkpoint_path = output.with_extension("checkpoint");
+
+            let nworkers = if let Some(t) = threads {
+                t
+            } else {
+                if io_bound {
+                    num_cpus::get() / 2
+                } else {
+                    num_cpus::get()
+                }
+            };
+
+            let nthreads_per_worker = if io_bound { 2 } else { 1 };
             let external_context = ExternalContext {
                 hmm_size_lb: hmm_size_lb.unwrap_or(10),
                 show_progress: progress,
@@ -98,7 +111,7 @@ fn main() -> anyhow::Result<()> {
                 trim,
                 only_queries,
                 db: checkpoint.then(|| {
-                    warn!("checkpointing is not guaranteed to work again on different machines/architecture");
+                    warn!("reloading a checkpoint is only guaranteed to work on the same input files and architecture, with same hmm-size-lb");
                     sled::Config::default()
                         .path(&checkpoint_path)
                         .flush_every_ms(Some(3000))
@@ -112,20 +125,14 @@ fn main() -> anyhow::Result<()> {
                         .as_str(),
                     )
                 }),
+                num_workers: nworkers,
+                num_threads_per_worker: nthreads_per_worker,
             };
-            let nthreads = if let Some(t) = threads {
-                t
-            } else {
-                if external_context.io_bound {
-                    num_cpus::get() / 2
-                } else {
-                    num_cpus::get()
-                }
-            };
+
             rayon::ThreadPoolBuilder::new()
-                .num_threads(nthreads)
+                .num_threads(nworkers)
                 .build_global()?;
-            info!("using {:?} workers", nthreads);
+            info!("using {:?} workers", nworkers);
             if checkpoint {
                 let num_entries = &external_context.db.as_ref().unwrap().len();
                 if external_context.db.as_ref().unwrap().was_recovered() {

@@ -221,10 +221,12 @@ impl ScoringCtxt {
             score_trackers[seq_id as usize].hmm_ids.push(hmm_id);
             score_trackers[seq_id as usize].bitscores.push(score);
         }
-        let new_scores: Vec<Vec<(u32, f64)>> = score_trackers
-            .par_iter()
-            .map(|st| st.calc_adjusted_scores(self).collect_vec())
-            .collect();
+        let new_scores: Vec<Vec<(u32, f64)>> = config.create_full_pool().install(|| {
+            score_trackers
+                .par_iter()
+                .map(|st| st.calc_adjusted_scores(self).collect_vec())
+                .collect()
+        });
         Ok(AdderPayload {
             sequence_tophits: new_scores,
         })

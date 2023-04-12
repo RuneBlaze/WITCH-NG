@@ -65,6 +65,6 @@ pub fn combined_analysis(
         elapsed
     );
     let adder = AdderContext::from_scoring_ctxt(&ehmm_path, scorer, scored)?;
-    add_queries(adder, &output_path, &actual_backbone_path)?;
+    add_queries(adder, &output_path, &actual_backbone_path, config)?;
     Ok(())
 }

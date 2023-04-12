@@ -77,7 +77,31 @@ The output `extended_alignment.afa` contains an aligned version of all sequences
 
 ### `--threads <THREADS>`
 
-Set level of parallelism; WITCH-NG by default uses all logical cores.
+Set level of "worker" parallelism; WITCH-NG by default uses all logical cores unless `--io-bound` is set. If
+`--io-bound` is set, WITCH-NG will use halve the number of threads for the `hmmsearch` step.
+
+### `--io-bound`
+
+Change parallelization strategy. Let $t$ be the number of threads specified by `--threads`. Let $k$ be $2$
+if `--io-bound` else $1$. In the `hmmsearch` phase, the parallelization strategy uses $t$ workers, each worker using $k$ threads.
+In other phases, the strategy uses `t \cdot k` workers.
+
+### `--checkpoint`
+
+Checkpoint the intermediate `hmmsearch` results to disk. The checkpoint file is currently fixed to the output filename with
+extension replaced as `.checkpoint`. WITCH-NG will attempt to load the checkpoint file if it exists.
+
+### `--progress`
+
+Report progress roughly once per ten seconds for the `hmmsearch` step. Future work allows it also for the `hmmalign` step.
+
+## Other Tips
+
+WITCH-NG uses `tracing` to log events. To have more verbose logging, set the `RUST_LOG` environment variable to `debug`, such as:
+
+```bash
+RUST_LOG=debug ./witch-ng [...]
+```
 
 ## Building WITCH-NG from Scratch
 

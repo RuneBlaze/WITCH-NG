@@ -1,5 +1,6 @@
 use crate::{
     compact_printer::CompactHomologies,
+    config::ExternalContext,
     external,
     matching::solve_matching_problem,
     score_calc::ScoringCtxt,
@@ -8,7 +9,10 @@ use crate::{
 use ahash::AHashMap;
 use anyhow::bail;
 use itertools::Itertools;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::{
+    iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator},
+    ThreadPool, ThreadPoolBuilder,
+};
 use seq_io::{fasta::OwnedRecord, BaseRecord};
 use std::{
     cell::RefCell,
@@ -180,29 +184,37 @@ pub fn unoptimized_process_transposed_payload(ctxt: &AdderContext) -> anyhow::Re
     Ok(subweights)
 }
 
-pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
-    let ctxt = AdderContext::manual_construction(basedir)?;
-    let default_output_path = ctxt.default_output_path();
-    let base_alignment_path = ctxt.base_alignment_path();
-    add_queries(ctxt, &default_output_path, &base_alignment_path)
-}
+// pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
+//     let ctxt = AdderContext::manual_construction(basedir)?;
+//     let default_output_path = ctxt.default_output_path();
+//     let base_alignment_path = ctxt.base_alignment_path();
+//     add_queries(ctxt, &default_output_path, &base_alignment_path)
+// }
 
 pub fn add_queries(
     ctxt: AdderContext,
     outfile: &PathBuf,
     base_alignment_path: &PathBuf,
+    config: &ExternalContext,
 ) -> anyhow::Result<()> {
     let subweights = unoptimized_process_transposed_payload(&ctxt)?;
     let m = ctxt.hmm_ctxt.metadata[0].column_poitions.len();
-    let dp_solutions: Vec<Vec<i32>> = subweights
-        .weights
-        .into_par_iter()
-        .enumerate()
-        .map(|(i, w)| {
-            let n = ctxt.queries[i].seq.len();
-            solve_matching_problem((n, m), w)
-        })
-        .collect();
+    let pool = config.create_full_pool();
+    info!(
+        "solving ensemble aggregation problems in parallel using {} threads",
+        config.total_threads()
+    );
+    let dp_solutions: Vec<Vec<i32>> = pool.install(|| {
+        subweights
+            .weights
+            .into_par_iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let n = ctxt.queries[i].seq.len();
+                solve_matching_problem((n, m), w)
+            })
+            .collect()
+    });
     let mut c_homologies =
         CompactHomologies::new(ctxt.hmm_ctxt.num_consensus_columns(), dp_solutions);
     c_homologies.append_consensus_column_hits();
