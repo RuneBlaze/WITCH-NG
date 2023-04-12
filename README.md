@@ -78,7 +78,7 @@ The output `extended_alignment.afa` contains an aligned version of all sequences
 ### `--threads <THREADS>`
 
 Set level of "worker" parallelism; WITCH-NG by default uses all logical cores unless `--io-bound` is set. If
-`--io-bound` is set, WITCH-NG will use halve the number of threads for the `hmmsearch` step.
+`--io-bound` is set, WITCH-NG will default to use half the number of logical cores for this parameter.
 
 ### `--io-bound`
 
