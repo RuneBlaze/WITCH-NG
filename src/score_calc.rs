@@ -145,14 +145,14 @@ impl ScoringCtxt {
         let q = self.queries.len();
         let report_progress = config.show_progress;
         let mut chunk_size = CHUNK_SIZE;
-        chunk_size = chunk_size.min(q / config.num_workers).max(500);
+        chunk_size = chunk_size.min(q / config.num_workers).max(400);
         info!(chunk_size, "prepared to run hmmsearch");
         let mut score_trackers = vec![BitscoreTracker::default(); q];
         let total_work = (self.queries.len() as f64 / chunk_size as f64).ceil() as usize * h;
-        let num_finished = Arc::new(AtomicUsize::new(0));
+        let num_finished = Arc::new(AtomicUsize::new(0)); // FIXME: use an eventually consistent counter. Arc might have too high an overhead
         let (tx, rx): (Sender<bool>, Receiver<bool>) = std::sync::mpsc::channel();
         config.show_progress.then(|| {
-            info!("Progress reporting will overestimate the currently done work by a constant amount (to be fixed; no impact on result)");
+            info!("Progress reporting will overestimate the currently done work by a minor constant amount (to be fixed; no impact on result)");
         });
         let progress_for_finished = num_finished.clone();
         let progress_handle = config.show_progress.then(move || {
