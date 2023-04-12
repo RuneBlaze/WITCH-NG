@@ -1,5 +1,6 @@
 use crate::{
     adder::{add_queries, AdderContext},
+    config::ExternalContext,
     melt::oneshot_melt,
     score_calc::ScoringCtxt,
     structures::CrucibleCtxt,
@@ -12,17 +13,24 @@ use std::{
     time::Instant,
 };
 use tracing::info;
+
 pub fn combined_analysis(
     input_path: PathBuf,
-    backbone_path: PathBuf,
+    mut backbone_path: PathBuf,
     output_path: PathBuf,
     ehmm_path: Option<PathBuf>,
     tree_path: Option<PathBuf>,
-    trim: bool,
-    only_queries: bool,
+    config: &ExternalContext,
 ) -> anyhow::Result<()> {
-    if trim || only_queries {
+    if config.trim || config.only_queries {
         bail!("Trimming and only-queries are not implemented yet");
+    }
+    if config.db.as_ref().map(|it| it.was_recovered()) == Some(true) && ehmm_path.is_none() {
+        info!("recovered from checkpoint file, trying to reuse existing eHMM");
+        backbone_path.set_extension("ehmm");
+        if !backbone_path.exists() {
+            bail!("checkpoint file exists but eHMM does not. Please provide the eHMM path or remove the checkpoint");
+        }
     }
     // we first decide the eHMM path and also the backbone MSA path
     let (actual_backbone_path, ehmm_ctxt, ehmm_path) = if fs::metadata(&backbone_path)?.is_dir() {
@@ -41,15 +49,16 @@ pub fn combined_analysis(
         let ctxt = oneshot_melt(
             &backbone_path,
             &tree_path.expect("building eHMM must use a backbone tree"),
-            10,
             &actual_ehmm_dir,
+            config,
         )?;
         (backbone_path, ctxt, actual_ehmm_dir)
     };
     // then we start scoring everything
     let scorer = ScoringCtxt::from_ehmms_ctxt(ehmm_path.clone(), ehmm_ctxt, &input_path)?;
+    // scoring finished
     let t = Instant::now();
-    let scored = scorer.produce_payload()?;
+    let scored = scorer.produce_payload(config)?;
     let elapsed = t.elapsed();
     info!(
         "all-against-all hmmsearch (with adjusted bitscore calculation) took {:?}",

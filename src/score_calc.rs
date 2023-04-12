@@ -1,8 +1,14 @@
 use std::{
     cmp::Reverse,
     fs::File,
-    io::{BufReader, BufWriter},
+    io::{BufReader, BufWriter, Read},
     path::PathBuf,
+    sync::{
+        atomic::AtomicUsize,
+        mpsc::{Receiver, Sender},
+        Arc,
+    },
+    time::Duration,
 };
 
 use ahash::AHashMap;
@@ -10,15 +16,20 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rayon::{
     iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    prelude::IndexedParallelIterator,
     slice::ParallelSlice,
 };
 use seq_io::fasta::OwnedRecord;
 use tracing::{debug, info};
 
 use crate::{
+    config::ExternalContext,
     external::hmmsearch,
+    progress_reporter,
     structures::{AdderPayload, CrucibleCtxt},
 };
+
+const CHUNK_SIZE: usize = 1000;
 
 pub struct ScoringCtxt {
     pub base_dir: PathBuf,
@@ -129,33 +140,83 @@ impl ScoringCtxt {
         self.base_dir.join("scores.json")
     }
 
-    pub fn produce_payload(&self) -> anyhow::Result<AdderPayload> {
+    pub fn produce_payload(&self, config: &ExternalContext) -> anyhow::Result<AdderPayload> {
         let h = self.hmm_ctxt.num_hmms();
         let q = self.queries.len();
+        let report_progress = config.show_progress;
         let mut score_trackers = vec![BitscoreTracker::default(); q];
+        let total_num_chunks = (self.queries.len() as f64 / CHUNK_SIZE as f64).ceil() as usize;
+        let num_finished = Arc::new(AtomicUsize::new(0));
+        let for_progress = num_finished.clone();
+        let (tx, rx): (Sender<bool>, Receiver<bool>) = std::sync::mpsc::channel();
+        config.show_progress.then(|| {
+            info!("Progress reporting will overestimate the currently done work by a constant amount (to be fixed; no impact on result)");
+        });
+        let progress_handle = config.show_progress.then(move || {
+            std::thread::spawn(move || {
+                progress_reporter::progress_reporter(
+                    &for_progress,
+                    total_num_chunks,
+                    Duration::from_secs(10),
+                    "scoring",
+                    rx,
+                )
+            })
+        });
+
         let hmmsearch_results: Vec<(u32, u32, f64)> = self
             .queries
-            .par_chunks(1000)
-            .flat_map(|chunk| {
-                (0..h).into_par_iter().flat_map_iter(|i| {
+            .par_chunks(CHUNK_SIZE)
+            .enumerate()
+            .flat_map(|(chunk_id, chunk)| {
+                let r = (0..h).into_par_iter().flat_map_iter(move |i| {
                     debug!("scoring hmm {}", i);
                     let hmm_path = self.hmm_path(i as u32);
-                    let search_res = hmmsearch(&hmm_path, chunk.iter(), &self.seq_ids)
-                        .expect("hmmsearch failed");
+                    let search_res = match &config.db {
+                        Some(db) => {
+                            let k = [chunk_id, i];
+                            let k_bytes: [u8; (usize::BITS / 8 * 2) as usize] = k[0]
+                                .to_be_bytes()
+                                .into_iter()
+                                .chain(k[1].to_be_bytes().into_iter())
+                                .collect::<Vec<u8>>()
+                                .try_into()
+                                .unwrap();
+                            match db.get(&k_bytes).expect("failed to get from db") {
+                                Some(v) => {
+                                    info!(i, chunk_id, "found cached hmmsearch result");
+                                    let search_res: Vec<(u32, f64)> =
+                                        unsafe { rkyv::from_bytes_unchecked(v.as_ref()) }.unwrap();
+                                    search_res
+                                }
+                                None => {
+                                    let search_res =
+                                        hmmsearch(&hmm_path, chunk.iter(), &self.seq_ids, config)
+                                            .expect("hmmsearch failed");
+                                    let serialized = rkyv::to_bytes::<_, 1024>(&search_res)
+                                        .expect("failed to serialize");
+                                    db.insert(&k_bytes, sled::IVec::from(serialized.into_vec()))
+                                        .expect("failed to insert into db");
+                                    debug!(i, chunk_id, "cached hmmsearch result");
+                                    search_res
+                                }
+                            }
+                        }
+                        None => hmmsearch(&hmm_path, chunk.iter(), &self.seq_ids, config)
+                            .expect("hmmsearch failed"),
+                    };
                     search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
-                })
+                });
+                if report_progress {
+                    num_finished.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                r
             })
             .collect();
-        // let hmmsearch_results: Vec<(u32, u32, f64)> = (0..h)
-        //     .into_par_iter()
-        //     .flat_map_iter(|i| {
-        //         debug!("scoring hmm {}", i);
-        //         let hmm_path = self.hmm_path(i as u32);
-        //         let search_res = hmmsearch(&hmm_path, self.queries.iter(), &self.seq_ids)
-        //             .expect("hmmsearch failed");
-        //         search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
-        //     })
-        //     .collect();
+        let _ = tx.send(true);
+        if let Some(handle) = progress_handle {
+            handle.join().unwrap();
+        }
         for (hmm_id, seq_id, score) in hmmsearch_results {
             score_trackers[seq_id as usize].hmm_ids.push(hmm_id);
             score_trackers[seq_id as usize].bitscores.push(score);
@@ -170,9 +231,9 @@ impl ScoringCtxt {
     }
 }
 
-pub fn oneshot_score_queries(basedir: &PathBuf) -> anyhow::Result<()> {
+pub fn oneshot_score_queries(basedir: &PathBuf, config: &ExternalContext) -> anyhow::Result<()> {
     let ctxt = ScoringCtxt::manual_construction(basedir)?;
-    let payload = ctxt.produce_payload()?;
+    let payload = ctxt.produce_payload(config)?;
     let mut w = BufWriter::new(File::create(ctxt.scores_path())?);
     serde_json::to_writer(&mut w, &payload.sequence_tophits)?;
     Ok(())

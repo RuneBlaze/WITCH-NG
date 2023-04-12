@@ -1,4 +1,4 @@
-use crate::{external::hmmbuild, structures::*};
+use crate::{config::ExternalContext, external::hmmbuild, structures::*};
 use ahash::AHashSet;
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
@@ -114,11 +114,11 @@ pub fn hierarchical_decomp(tree: &Tree, max_size: usize) -> TaxaHierarchy {
 pub fn oneshot_melt(
     input: &PathBuf,
     tree: &PathBuf,
-    max_size: usize,
     outdir: &PathBuf,
+    config: &ExternalContext,
 ) -> anyhow::Result<CrucibleCtxt> {
     let collection = TreeCollection::from_newick(tree).expect("Failed to read tree");
-    let decomp = hierarchical_decomp(&collection.trees[0], max_size);
+    let decomp = hierarchical_decomp(&collection.trees[0], config.hmm_size_lb);
     info!(
         num_subsets = decomp.decomposition_ranges.len(),
         "decomposed input tree"
@@ -150,15 +150,8 @@ pub fn oneshot_melt(
     }
     let subsets_root = outdir.join("subsets");
     let metadata_path = outdir.join("melt.json");
-    create_dir_all(&subsets_root)?;
-    // for (i, &(lb, ub)) in decomp.decomposition_ranges.iter().enumerate() {
-    //     let to_write = &records[lb..ub];
-    //     let mut writer = BufWriter::new(File::create(subsets_root.join(format!("{}.afa", i)))?);
-    //     for r in to_write {
-    //         r.write_wrap(&mut writer, 60)?;
-    //     }
-    // }
 
+    create_dir_all(&subsets_root)?;
     {
         let to_write = &records[0..collection.ntaxa()];
         let mut writer = BufWriter::new(File::create(subsets_root.join(format!("{}.afa", 0)))?);
@@ -182,8 +175,6 @@ pub fn oneshot_melt(
         });
 
     let mut writer = BufWriter::new(File::create(metadata_path)?);
-    // let mut metadata: Vec<HmmMeta> = vec![];
-    // let mut buf = vec![0u32; k];
     // TODO: very probably not the best way to reuse buffer
     let t_buf = Arc::new(ThreadLocal::new());
     let metadata: Vec<HmmMeta> = decomp
@@ -202,23 +193,10 @@ pub fn oneshot_melt(
                     column_positions.push(i);
                 }
             }
-            
+
             HmmMeta::new(decomp_range, nonzero_counts, column_positions)
         })
         .collect();
-    // for &decomp_range in &decomp.decomposition_ranges {
-    //     CrucibleCtxt::retrieve_nchars_noalloc(&nchars_prefix, decomp_range, &mut buf);
-    //     let mut nonzero_counts: Vec<u32> = vec![];
-    //     let mut column_positions: Vec<usize> = vec![];
-    //     for (i, &c) in buf.iter().enumerate() {
-    //         if c > 0 {
-    //             nonzero_counts.push(c);
-    //             column_positions.push(i);
-    //         }
-    //     }
-    //     let hmm = HmmMeta::new(decomp_range, nonzero_counts, column_positions);
-    //     metadata.push(hmm);
-    // }
     let ctxt = CrucibleCtxt::new(metadata);
     serde_json::to_writer(&mut writer, &ctxt)?;
     Ok(ctxt)

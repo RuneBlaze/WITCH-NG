@@ -8,6 +8,8 @@ use std::process::Stdio;
 use std::{path::PathBuf, process::Command};
 use tracing::debug;
 
+use crate::config::ExternalContext;
+
 pub fn hmmalign<'a, R>(hmm_path: &PathBuf, seqs: R) -> anyhow::Result<Vec<u8>>
 where
     R: Iterator<Item = &'a OwnedRecord>,
@@ -74,13 +76,14 @@ pub fn hmmsearch<'a, R>(
     hmm_path: &PathBuf,
     seqs: R,
     seq_id: &AHashMap<String, u32>,
+    config: &ExternalContext,
 ) -> anyhow::Result<Vec<(u32, f64)>>
 where
     R: Iterator<Item = &'a OwnedRecord>,
 {
     let mut child = Command::new("hmmsearch")
         .arg("--cpu")
-        .arg("0")
+        .arg(if config.io_bound { "1" } else { "0" })
         .arg("--noali")
         .arg("--max")
         .arg("-E")

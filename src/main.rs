@@ -1,21 +1,25 @@
-//! # Crucible
+//! # WITCH-NG
 //!
-//! `crucible` aims to be an efficient implementation of the WITCH algorithm
+//! WITCH-NG (code-name `crucible`) aims to be an efficient implementation of the WITCH algorithm
 //! for aligning fragments to an existing alignment (called a "reference"
 //! or "backbone" alignment).
 mod adder;
 mod combined;
 mod compact_printer;
+mod config;
 mod external;
 mod matching;
 mod melt;
+mod progress_reporter;
 mod score_calc;
 mod structures;
 
-use std::{path::PathBuf, time::Instant};
 use anyhow::Ok;
 use clap::{Parser, Subcommand};
-use tracing::info;
+use std::{path::PathBuf, time::Instant};
+use tracing::{debug, info, warn};
+
+use crate::config::ExternalContext;
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -26,6 +30,7 @@ struct Args {
 
 #[derive(Subcommand, Debug, PartialEq, Hash)]
 enum SubCommand {
+    /// Add query sequences to a reference alignment
     Add {
         /// Path to query sequences (fragments) in FASTA format
         #[clap(short, long)]
@@ -48,6 +53,18 @@ enum SubCommand {
         /// Forgo outputting the backbone; must go with "--trim"
         #[clap(long)]
         only_queries: bool,
+        /// The HMM decomposition size lower bound; how many sequences must each HMM contain? Defaults to 2
+        #[clap(long)]
+        hmm_size_lb: Option<usize>,
+        /// Specify to use an IO bound strategy; make each worker use two threads, one thread for IO
+        #[clap(long)]
+        io_bound: bool,
+        /// Enable checkpointing in the hmmsearch stage; the checkpoint file will be a suffix of the output file
+        #[clap(long)]
+        checkpoint: bool,
+        /// Log progress every ten seconds for the search phase
+        #[clap(long)]
+        progress: bool,
         /// Set level of parallelism; defaults to number of logical cores
         #[clap(long)]
         threads: Option<usize>,
@@ -68,11 +85,53 @@ fn main() -> anyhow::Result<()> {
             trim,
             only_queries,
             threads,
+            hmm_size_lb,
+            io_bound,
+            checkpoint,
+            progress,
         } => {
-            if let Some(t) = threads {
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(t)
-                    .build_global()?;
+            let checkpoint_path = output.with_extension("checkpoint");
+            let external_context = ExternalContext {
+                hmm_size_lb: hmm_size_lb.unwrap_or(10),
+                show_progress: progress,
+                io_bound,
+                trim,
+                only_queries,
+                db: checkpoint.then(|| {
+                    warn!("checkpointing is not guaranteed to work again on different machines/architecture");
+                    sled::Config::default()
+                        .path(&checkpoint_path)
+                        .flush_every_ms(Some(3000))
+                        .use_compression(true)
+                        .compression_factor(3)
+                        .open().expect(
+                        format!(
+                            "failed to open checkpoint file at {:?}",
+                            checkpoint_path.clone()
+                        )
+                        .as_str(),
+                    )
+                }),
+            };
+            let nthreads = if let Some(t) = threads {
+                t
+            } else {
+                if external_context.io_bound {
+                    num_cpus::get() / 2
+                } else {
+                    num_cpus::get()
+                }
+            };
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(nthreads)
+                .build_global()?;
+            info!("using {:?} workers", nthreads);
+            if checkpoint {
+                let num_entries = &external_context.db.as_ref().unwrap().len();
+                if external_context.db.as_ref().unwrap().was_recovered() {
+                    info!("recovered from checkpoint file at {:?}", &checkpoint_path);
+                    debug!("checkpoint file contains {:?} entries", num_entries);
+                }
             }
             combined::combined_analysis(
                 input,
@@ -80,8 +139,7 @@ fn main() -> anyhow::Result<()> {
                 output,
                 ehmm_path,
                 tree,
-                trim,
-                only_queries,
+                &external_context,
             )?;
         }
     }
