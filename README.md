@@ -84,7 +84,7 @@ Set level of "worker" parallelism; WITCH-NG by default uses all logical cores un
 
 Change parallelization strategy. Let $t$ be the number of threads specified by `--threads`. Let $k$ be $2$
 if `--io-bound` else $1$. In the `hmmsearch` phase, the parallelization strategy uses $t$ workers, each worker using $k$ threads.
-In other phases, the strategy uses `t \cdot k` workers.
+In other phases, the strategy uses $t \cdot k$ workers.
 
 ### `--checkpoint`
 
@@ -93,7 +93,12 @@ extension replaced as `.checkpoint`. WITCH-NG will attempt to load the checkpoin
 
 ### `--progress`
 
-Report progress roughly once per ten seconds for the `hmmsearch` step. Future work allows it also for the `hmmalign` step.
+Report progress roughly once per ten seconds for the `hmmsearch` step. Future work will allow progress reporting also for the `hmmalign` step.
+
+### `--hmm-size-lb`
+
+Set the lower bound of the HMM size (number of sequences). The default is 10. Increasing this parameter allows faster execution (e.g., `25`). Note that WITCH-NG will have unexpected results if loading a checkpoint file with a different `--hmm-size-lb` value, so
+when checkpointing, it is recommended to use the same `--hmm-size-lb` value.
 
 ## Other Tips
 
