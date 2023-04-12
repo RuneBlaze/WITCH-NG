@@ -144,19 +144,22 @@ impl ScoringCtxt {
         let h = self.hmm_ctxt.num_hmms();
         let q = self.queries.len();
         let report_progress = config.show_progress;
+        let mut chunk_size = CHUNK_SIZE;
+        chunk_size = chunk_size.min(q / config.num_workers).max(500);
+        info!(chunk_size, "prepared to run hmmsearch");
         let mut score_trackers = vec![BitscoreTracker::default(); q];
-        let total_num_chunks = (self.queries.len() as f64 / CHUNK_SIZE as f64).ceil() as usize;
+        let total_work = (self.queries.len() as f64 / chunk_size as f64).ceil() as usize * h;
         let num_finished = Arc::new(AtomicUsize::new(0));
-        let for_progress = num_finished.clone();
         let (tx, rx): (Sender<bool>, Receiver<bool>) = std::sync::mpsc::channel();
         config.show_progress.then(|| {
             info!("Progress reporting will overestimate the currently done work by a constant amount (to be fixed; no impact on result)");
         });
+        let progress_for_finished = num_finished.clone();
         let progress_handle = config.show_progress.then(move || {
             std::thread::spawn(move || {
                 progress_reporter::progress_reporter(
-                    &for_progress,
-                    total_num_chunks,
+                    &progress_for_finished,
+                    total_work,
                     Duration::from_secs(10),
                     "scoring",
                     rx,
@@ -166,9 +169,10 @@ impl ScoringCtxt {
 
         let hmmsearch_results: Vec<(u32, u32, f64)> = self
             .queries
-            .par_chunks(CHUNK_SIZE)
+            .par_chunks(chunk_size)
             .enumerate()
             .flat_map(|(chunk_id, chunk)| {
+                let for_progress = num_finished.clone();
                 let r = (0..h).into_par_iter().flat_map_iter(move |i| {
                     debug!("scoring hmm {}", i);
                     let hmm_path = self.hmm_path(i as u32);
@@ -205,11 +209,11 @@ impl ScoringCtxt {
                         None => hmmsearch(&hmm_path, chunk.iter(), &self.seq_ids, config)
                             .expect("hmmsearch failed"),
                     };
+                    if report_progress {
+                        for_progress.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
                     search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
                 });
-                if report_progress {
-                    num_finished.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                }
                 r
             })
             .collect();
