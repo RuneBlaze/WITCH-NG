@@ -89,7 +89,7 @@ In other phases, the strategy uses $t \cdot k$ workers.
 ### `--checkpoint`
 
 Checkpoint the intermediate `hmmsearch` results to disk, loading a prior checkpoint file if exists. The checkpoint file is currently fixed to the output filename with
-extension replaced as `.checkpoint`. WITCH-NG will attempt to load the checkpoint file if it exists.
+extension replaced as `.checkpoint`. Algorithm parameters should be the same when loading a checkpoint file.
 
 ### `--progress`
 
