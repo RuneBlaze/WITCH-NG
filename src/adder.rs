@@ -1,5 +1,5 @@
 use crate::{
-    compact_printer::CompactHomologies,
+    compact_printer::LettersWithColors,
     config::ExternalContext,
     external,
     matching::solve_matching_problem,
@@ -9,17 +9,9 @@ use crate::{
 use ahash::AHashMap;
 use anyhow::bail;
 use itertools::Itertools;
-use rayon::{
-    iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator},
-};
-use seq_io::{fasta::OwnedRecord};
-use std::{
-    cell::RefCell,
-    fs::File,
-    io::{BufWriter},
-    path::PathBuf,
-    sync::Arc,
-};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use seq_io::fasta::OwnedRecord;
+use std::{cell::RefCell, fs::File, io::BufWriter, path::PathBuf, sync::Arc};
 use thread_local::ThreadLocal;
 use tracing::info;
 
@@ -45,30 +37,22 @@ impl AdderContext {
             transposed_scores: transposed,
         })
     }
-
-    pub fn base_alignment_path(&self) -> PathBuf {
-        self.base_dir.parent().unwrap().join("backbone.aln.fasta")
-    }
-
-    pub fn default_output_path(&self) -> PathBuf {
-        self.base_dir.parent().unwrap().join("merged.afa")
-    }
 }
 
 #[derive(Debug)]
-pub struct Subweights {
+pub struct BatchedWeightMatrix {
     pub weights: Vec<AHashMap<(u32, u32), f64>>,
 }
 
-impl Subweights {
+impl BatchedWeightMatrix {
     pub fn from_ctxt(ctxt: &AdderContext) -> Self {
         let n = ctxt.queries.len();
-        Subweights {
+        BatchedWeightMatrix {
             weights: vec![AHashMap::new(); n],
         }
     }
 
-    pub fn merge_in(&mut self, rhs: Subweights) {
+    pub fn merge_in(&mut self, rhs: BatchedWeightMatrix) {
         for (w, r) in self.weights.iter_mut().zip(rhs.weights) {
             for (k, v) in r {
                 w.entry(k).and_modify(|e| *e += v).or_insert(v);
@@ -84,10 +68,10 @@ impl AdderContext {
             .join(format!("{}.hmm", hmm_id))
     }
 
-    pub fn process_one_hmm(
+    pub fn hmmalign_for_one_hmm(
         &self,
         hmm_id: u32,
-        subweights: &mut Subweights,
+        subweights: &mut BatchedWeightMatrix,
     ) -> anyhow::Result<()> {
         let metadata = &self.hmm_ctxt.metadata[hmm_id as usize];
         let hits = &self.transposed_scores[hmm_id as usize];
@@ -146,38 +130,31 @@ impl AdderContext {
     }
 }
 
-pub fn unoptimized_process_transposed_payload(ctxt: &AdderContext) -> anyhow::Result<Subweights> {
+pub fn compute_top_homologies(ctxt: &AdderContext) -> anyhow::Result<BatchedWeightMatrix> {
     let tls = Arc::new(ThreadLocal::new());
     (0..ctxt.hmm_ctxt.num_hmms())
         .into_par_iter()
         .for_each(|hmm_id| {
             let local = tls.clone();
-            let subweights = local.get_or(|| RefCell::new(Subweights::from_ctxt(ctxt)));
+            let subweights = local.get_or(|| RefCell::new(BatchedWeightMatrix::from_ctxt(ctxt)));
             let mut borrowed = subweights.borrow_mut();
-            ctxt.process_one_hmm(hmm_id as u32, &mut borrowed)
+            ctxt.hmmalign_for_one_hmm(hmm_id as u32, &mut borrowed)
                 .expect("Failed to run hmmalign.");
         });
-    let mut subweights = Subweights::from_ctxt(ctxt);
+    let mut subweights = BatchedWeightMatrix::from_ctxt(ctxt);
     Arc::try_unwrap(tls).unwrap().into_iter().for_each(|s| {
         subweights.merge_in(s.into_inner());
     });
     Ok(subweights)
 }
 
-// pub fn oneshot_add_queries(basedir: &PathBuf) -> anyhow::Result<()> {
-//     let ctxt = AdderContext::manual_construction(basedir)?;
-//     let default_output_path = ctxt.default_output_path();
-//     let base_alignment_path = ctxt.base_alignment_path();
-//     add_queries(ctxt, &default_output_path, &base_alignment_path)
-// }
-
-pub fn add_queries(
+pub fn align_queries_using_scores(
     ctxt: AdderContext,
     outfile: &PathBuf,
     base_alignment_path: &PathBuf,
     config: &ExternalContext,
 ) -> anyhow::Result<()> {
-    let subweights = unoptimized_process_transposed_payload(&ctxt)?;
+    let subweights = compute_top_homologies(&ctxt)?;
     let m = ctxt.hmm_ctxt.metadata[0].column_poitions.len();
     let pool = config.create_full_pool();
     info!(
@@ -195,16 +172,16 @@ pub fn add_queries(
             })
             .collect()
     });
-    let mut c_homologies =
-        CompactHomologies::new(ctxt.hmm_ctxt.num_consensus_columns(), dp_solutions);
-    c_homologies.append_consensus_column_hits();
-    let hydrated_homologies = c_homologies.transl();
+    let mut compact_homologies =
+        LettersWithColors::new(ctxt.hmm_ctxt.num_consensus_columns(), dp_solutions);
+    compact_homologies.append_backbone_column_colors();
+    let formatted_homologies = compact_homologies.transl();
     info!(
         "output homologies formatted, output alignment will have {} columns",
-        hydrated_homologies.num_columns
+        formatted_homologies.num_visual_columns
     );
     let mut output_writer = BufWriter::new(File::create(outfile)?);
-    hydrated_homologies.write_all_sequences(
+    formatted_homologies.write_all_sequences(
         &ctxt.queries,
         base_alignment_path,
         &mut output_writer,

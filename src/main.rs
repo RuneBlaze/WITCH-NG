@@ -95,12 +95,10 @@ fn main() -> anyhow::Result<()> {
 
             let nworkers = if let Some(t) = threads {
                 t
+            } else if io_bound {
+                num_cpus::get() / 2
             } else {
-                if io_bound {
-                    num_cpus::get() / 2
-                } else {
-                    num_cpus::get()
-                }
+                num_cpus::get()
             };
 
             let nthreads_per_worker = if io_bound { 2 } else { 1 };
@@ -117,13 +115,8 @@ fn main() -> anyhow::Result<()> {
                         .flush_every_ms(Some(3000))
                         .use_compression(true)
                         .compression_factor(3)
-                        .open().expect(
-                        format!(
-                            "failed to open checkpoint file at {:?}",
-                            checkpoint_path.clone()
-                        )
-                        .as_str(),
-                    )
+                        .open().unwrap_or_else(|_| panic!("failed to open checkpoint file at {:?}",
+                            checkpoint_path.clone()))
                 }),
                 num_workers: nworkers,
                 num_threads_per_worker: nthreads_per_worker,

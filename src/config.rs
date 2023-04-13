@@ -19,18 +19,16 @@ impl ExternalContext {
     }
 
     pub fn create_full_pool(&self) -> ThreadPool {
-        let pool = ThreadPoolBuilder::new()
+        ThreadPoolBuilder::new()
             .num_threads(self.total_threads())
             .build()
-            .expect("Failed to create thread pool.");
-        pool
+            .expect("Failed to create thread pool.")
     }
 }
 
 pub fn create_pool(num_threads: usize) -> ThreadPool {
-    let pool = ThreadPoolBuilder::new()
+    ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
-        .expect("Failed to create thread pool.");
-    pool
+        .expect("Failed to create thread pool.")
 }

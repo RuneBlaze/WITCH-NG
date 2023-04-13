@@ -1,7 +1,6 @@
 use std::{
     cmp::Reverse,
     fs::File,
-    io::{BufReader},
     path::PathBuf,
     sync::{
         atomic::AtomicUsize,
@@ -29,7 +28,7 @@ use crate::{
     structures::{AdderPayload, CrucibleCtxt},
 };
 
-const CHUNK_SIZE: usize = 1000;
+const DEFAULT_CHUNK_SIZE: usize = 1000;
 
 pub struct ScoringCtxt {
     pub base_dir: PathBuf,
@@ -38,19 +37,10 @@ pub struct ScoringCtxt {
     pub seq_ids: AHashMap<String, u32>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BitscoreTracker {
     pub hmm_ids: Vec<u32>,
     pub bitscores: Vec<f64>,
-}
-
-impl Default for BitscoreTracker {
-    fn default() -> Self {
-        Self {
-            hmm_ids: Vec::new(),
-            bitscores: Vec::new(),
-        }
-    }
 }
 
 impl BitscoreTracker {
@@ -91,9 +81,8 @@ impl ScoringCtxt {
         queries_path: &PathBuf,
     ) -> anyhow::Result<Self> {
         let queries_failiable: Result<Vec<_>, _> =
-            seq_io::fasta::Reader::new(File::open(&queries_path)?)
+            seq_io::fasta::Reader::new(File::open(queries_path)?)
                 .records()
-                .into_iter()
                 .collect();
         let queries = queries_failiable?;
         info!("read {} query sequences", queries.len());
@@ -119,7 +108,7 @@ impl ScoringCtxt {
         let h = self.hmm_ctxt.num_hmms();
         let q = self.queries.len();
         let report_progress = config.show_progress;
-        let mut chunk_size = CHUNK_SIZE;
+        let mut chunk_size = DEFAULT_CHUNK_SIZE;
         chunk_size = chunk_size.min(q / config.num_workers).max(400);
         info!(chunk_size, "prepared to run hmmsearch");
         let mut score_trackers = vec![BitscoreTracker::default(); q];
@@ -148,7 +137,7 @@ impl ScoringCtxt {
             .enumerate()
             .flat_map(|(chunk_id, chunk)| {
                 let for_progress = num_finished.clone();
-                let r = (0..h).into_par_iter().flat_map_iter(move |i| {
+                (0..h).into_par_iter().flat_map_iter(move |i| {
                     debug!("scoring hmm {}", i);
                     let hmm_path = self.hmm_path(i as u32);
                     let search_res = match &config.db {
@@ -161,7 +150,7 @@ impl ScoringCtxt {
                                 .collect::<Vec<u8>>()
                                 .try_into()
                                 .unwrap();
-                            match db.get(&k_bytes).expect("failed to get from db") {
+                            match db.get(k_bytes).expect("failed to get from db") {
                                 Some(v) => {
                                     info!(i, chunk_id, "found cached hmmsearch result");
                                     let search_res: Vec<(u32, f64)> =
@@ -174,7 +163,7 @@ impl ScoringCtxt {
                                             .expect("hmmsearch failed");
                                     let serialized = rkyv::to_bytes::<_, 1024>(&search_res)
                                         .expect("failed to serialize");
-                                    db.insert(&k_bytes, sled::IVec::from(serialized.into_vec()))
+                                    db.insert(k_bytes, sled::IVec::from(serialized.into_vec()))
                                         .expect("failed to insert into db");
                                     debug!(i, chunk_id, "cached hmmsearch result");
                                     search_res
@@ -188,8 +177,7 @@ impl ScoringCtxt {
                         for_progress.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     search_res.into_iter().map(move |(b, c)| (i as u32, b, c))
-                });
-                r
+                })
             })
             .collect();
         let _ = tx.send(true);

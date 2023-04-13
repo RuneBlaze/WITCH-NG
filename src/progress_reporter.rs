@@ -17,7 +17,7 @@ pub fn progress_reporter(
 ) {
     let start = Instant::now();
     let mut last_report = start;
-    while counter.load(Ordering::Relaxed) < total && !terminate_signal.try_recv().is_ok() {
+    while counter.load(Ordering::Relaxed) < total && terminate_signal.try_recv().is_err() {
         let now = Instant::now();
         if now.duration_since(last_report) >= interval {
             let progress = counter.load(Ordering::Relaxed);

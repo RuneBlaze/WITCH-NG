@@ -5,7 +5,9 @@ use std::collections::BTreeSet;
 use tracing::debug;
 
 struct CompressedSimilarities {
+    /// length of query, number of homology classes
     pub shape: (usize, usize),
+    /// sparse matrix of weights
     pub weights: AHashMap<(u32, u32), f64>,
     pub transl_row1: Vec<u32>,
     pub transl_row2: Vec<u32>,
@@ -44,7 +46,7 @@ fn compress_coordinates(weights: AHashMap<(u32, u32), f64>) -> CompressedSimilar
     }
 }
 
-/// solving a name-less instance of maximum-weight alignment merging problem
+/// solve a name-less instance of maximum-weight alignment merging problem
 pub fn solve_matching_problem(
     shape: (usize, usize),
     weights: AHashMap<(u32, u32), f64>,

@@ -1,5 +1,5 @@
 use crate::{
-    adder::{add_queries, AdderContext},
+    adder::{align_queries_using_scores, AdderContext},
     config::ExternalContext,
     melt::oneshot_melt,
     score_calc::ScoringCtxt,
@@ -65,6 +65,6 @@ pub fn combined_analysis(
         elapsed
     );
     let adder = AdderContext::from_scoring_ctxt(&ehmm_path, scorer, scored)?;
-    add_queries(adder, &output_path, &actual_backbone_path, config)?;
+    align_queries_using_scores(adder, &output_path, &actual_backbone_path, config)?;
     Ok(())
 }

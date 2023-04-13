@@ -1,7 +1,7 @@
 use crate::{config::ExternalContext, external::hmmbuild, structures::*};
 use ahash::AHashSet;
 use fixedbitset::FixedBitSet;
-use itertools::Itertools;
+
 use ndarray::{Array, ShapeBuilder};
 use ogcat::ogtree::*;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -124,7 +124,7 @@ pub fn oneshot_melt(
         "decomposed input tree"
     );
     let mut reader = Reader::from_path(input)?;
-    let mut records_failable: Result<Vec<_>, _> = reader.records().into_iter().collect();
+    let mut records_failable: Result<Vec<_>, _> = reader.records().collect();
     let records = records_failable.as_mut().unwrap();
     let ts = &collection.taxon_set;
     records.sort_unstable_by_key(|r| {

@@ -107,6 +107,7 @@ where
     if !output.status.success() {
         bail!("hmmsearch failed: {:?}", output);
     }
+    // the following translates logic directly from UPP
     lazy_static! {
         static ref RE: Regex = Regex::new(r"([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)").unwrap();
     }
