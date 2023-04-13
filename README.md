@@ -138,6 +138,8 @@ If you use our software, please cite the following paper:
 }
 ```
 
+Please also consider citing [WITCH](https://github.com/c5shen/WITCH), as it is the predecessor of WITCH-NG.
+
 ## License
 
 WITCH-NG is available under the GPLv3 LICENSE.
