@@ -138,7 +138,8 @@ If you use our software, please cite the following paper:
 }
 ```
 
-Please also consider citing [WITCH](https://github.com/c5shen/WITCH), as it is the predecessor of WITCH-NG.
+Please also consider citing [WITCH](https://github.com/c5shen/WITCH), as it is the predecessor of WITCH-NG
+and has more features.
 
 ## License
 

@@ -1,4 +1,3 @@
-use derive_builder::Builder;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 #[derive(Debug, Clone)]

@@ -11,13 +11,12 @@ use anyhow::bail;
 use itertools::Itertools;
 use rayon::{
     iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator},
-    ThreadPool, ThreadPoolBuilder,
 };
-use seq_io::{fasta::OwnedRecord, BaseRecord};
+use seq_io::{fasta::OwnedRecord};
 use std::{
     cell::RefCell,
     fs::File,
-    io::{BufReader, BufWriter},
+    io::{BufWriter},
     path::PathBuf,
     sync::Arc,
 };
@@ -39,24 +38,6 @@ impl AdderContext {
     ) -> anyhow::Result<Self> {
         let transposed = payload.transpose(&scorer.hmm_ctxt);
         let (queries, hmm_ctxt) = (scorer.queries, scorer.hmm_ctxt);
-        Ok(Self {
-            base_dir: base_dir.to_owned(),
-            hmm_ctxt,
-            queries,
-            transposed_scores: transposed,
-        })
-    }
-    pub fn manual_construction(base_dir: &PathBuf) -> anyhow::Result<Self> {
-        let hmm_ctxt_path = base_dir.join("melt.json");
-        let scores_path = base_dir.join("scores.json");
-        let queries_path = base_dir.parent().unwrap().join("queries.fasta");
-        let hmm_ctxt = serde_json::from_reader(BufReader::new(File::open(&hmm_ctxt_path)?))?;
-        let transposed = AdderPayload::from_path(&scores_path)?.transpose(&hmm_ctxt);
-        let queries_failiable: Result<Vec<_>, _> =
-            seq_io::fasta::Reader::new(File::open(&queries_path)?)
-                .records()
-                .collect();
-        let queries = queries_failiable?;
         Ok(Self {
             base_dir: base_dir.to_owned(),
             hmm_ctxt,
@@ -107,7 +88,6 @@ impl AdderContext {
         &self,
         hmm_id: u32,
         subweights: &mut Subweights,
-        // hits: &[(u32, f64)],
     ) -> anyhow::Result<()> {
         let metadata = &self.hmm_ctxt.metadata[hmm_id as usize];
         let hits = &self.transposed_scores[hmm_id as usize];

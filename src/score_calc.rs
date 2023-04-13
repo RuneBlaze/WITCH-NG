@@ -1,7 +1,7 @@
 use std::{
     cmp::Reverse,
     fs::File,
-    io::{BufReader, BufWriter, Read},
+    io::{BufReader},
     path::PathBuf,
     sync::{
         atomic::AtomicUsize,
@@ -85,28 +85,6 @@ impl BitscoreTracker {
 }
 
 impl ScoringCtxt {
-    pub fn manual_construction(base_dir: &PathBuf) -> anyhow::Result<Self> {
-        let hmm_ctxt_path = base_dir.join("melt.json");
-        let queries_path = base_dir.parent().unwrap().join("queries.fasta");
-        let hmm_ctxt = serde_json::from_reader(BufReader::new(File::open(&hmm_ctxt_path)?))?;
-        let queries_failiable: Result<Vec<_>, _> =
-            seq_io::fasta::Reader::new(File::open(&queries_path)?)
-                .records()
-                .into_iter()
-                .collect();
-        let queries = queries_failiable?;
-        let mut seq_ids: AHashMap<String, u32> = AHashMap::new();
-        for (i, q) in queries.iter().enumerate() {
-            seq_ids.insert(String::from_utf8(q.head.clone())?, i as u32);
-        }
-        Ok(Self {
-            base_dir: base_dir.to_owned(),
-            hmm_ctxt,
-            queries,
-            seq_ids,
-        })
-    }
-
     pub fn from_ehmms_ctxt(
         base_dir: PathBuf,
         hmm_ctxt: CrucibleCtxt,
@@ -135,9 +113,6 @@ impl ScoringCtxt {
         self.base_dir
             .join("subsets")
             .join(format!("{}.hmm", hmm_id))
-    }
-    pub fn scores_path(&self) -> PathBuf {
-        self.base_dir.join("scores.json")
     }
 
     pub fn produce_payload(&self, config: &ExternalContext) -> anyhow::Result<AdderPayload> {
@@ -235,12 +210,4 @@ impl ScoringCtxt {
             sequence_tophits: new_scores,
         })
     }
-}
-
-pub fn oneshot_score_queries(basedir: &PathBuf, config: &ExternalContext) -> anyhow::Result<()> {
-    let ctxt = ScoringCtxt::manual_construction(basedir)?;
-    let payload = ctxt.produce_payload(config)?;
-    let mut w = BufWriter::new(File::create(ctxt.scores_path())?);
-    serde_json::to_writer(&mut w, &payload.sequence_tophits)?;
-    Ok(())
 }
