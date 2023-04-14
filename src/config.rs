@@ -25,10 +25,3 @@ impl ExternalContext {
             .expect("Failed to create thread pool.")
     }
 }
-
-pub fn create_pool(num_threads: usize) -> ThreadPool {
-    ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .expect("Failed to create thread pool.")
-}

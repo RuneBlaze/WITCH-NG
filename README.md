@@ -6,7 +6,7 @@ Fast, efficient sequence adding to existing alignments, a somewhat optimized imp
 ## Use cases
 
  - Instead of `hmmbuild+hmmalign`, the `witch-ng add` subcommand can add sequences to an existing alignment. When the sequences are quite diverse, the output alignment is likely more accurate.
- - For *de novo* sequence alignment with diverse input lengths (e.g., some sequences ~500NT in length and others ~1500NT), `witch-ng msa` can scalably align sequences. The output alignment should match or surpass the accuracy of `mafft` or [MAGUS](https://github.com/vlasmirnov/MAGUS), particularly with sequences that are evolutionarily distant from each other.
+ - For *de novo* sequence alignment with diverse input lengths (e.g., some sequences ~500NT in length and others ~1500NT), `witch-ng` can scalably align sequences. The output alignment should match or surpass the accuracy of `mafft` or [MAGUS](https://github.com/vlasmirnov/MAGUS), particularly with sequences that are evolutionarily distant from each other. This was the setting studied, but please use [WITCH](https://github.com/c5shen/WITCH) first to produce the "backbone" and "queries" (see below).
 
 ## Quick start
 
@@ -98,7 +98,29 @@ Report progress roughly once per ten seconds for the `hmmsearch` step. Future wo
 ### `--hmm-size-lb`
 
 Set the lower bound of the HMM size (number of sequences). The default is 10. Increasing this parameter allows faster execution (e.g., `25`). Note that WITCH-NG will have unexpected results if loading a checkpoint file with a different `--hmm-size-lb` value, so
-when checkpointing, it is recommended to use the same `--hmm-size-lb` value.
+when checkpointing, it is recommended to use the same `--hmm-size-lb` value. This lower bound
+does not apply to the top-level HMM; at least one HMM will be in the ensemble.
+
+## Output Format
+
+WITCH-NG outputs an extended alignment in FASTA format, but the lower-case letters are singleton
+insertion letters. In other words, if any lower case letter is on the same column as another letter,
+these two letters are not homologous. This carries almost the same meaning as lower case letters in UPP and `hmmalign`'s style of output. We adopt this convention for more compact output.
+
+As a quirk compared to UPP, WITCH-NG pushes flanking singleton insertions to the front and back
+of the MSA. This only has a cosmetic effect on the output alignment.
+
+For phylogeny inference, these lower case letters should be masked because they will confuse the likes of RAxML or FastTree (future work will allow
+automatic masking on the output similar to UPP and WITCH). On a Linux machine [`ogcat`](https://github.com/RuneBlaze/ogcat) can help this masking for now:
+
+```bash
+curl -L https://github.com/RuneBlaze/ogcat/releases/download/refs%2Fheads%2Fmain/ogcat-x86_64-unknown-linux-musl.tar.gz | tar -xz
+# mask all columns that does not contain an informative homology
+# an informative homology is defined as a pair of upper-case non-ambiguous letters
+./ogcat mask extended_alignment.afa -o extended_alignment.masked.afa
+
+# extended_alignment.masked.afa can be used for FastTree, RAxML, etc.
+```
 
 ## Other Tips
 
@@ -107,6 +129,9 @@ WITCH-NG uses `tracing` to log events. To have more verbose logging, set the `RU
 ```bash
 RUST_LOG=debug ./witch-ng [...]
 ```
+
+Please make sure that the input sequences all contain upper-case letters (ambiguous letter such as
+`N` for nucleotides or `X` for amino acids are allowed).
 
 ## Building WITCH-NG from Scratch
 
