@@ -15,7 +15,7 @@ pub struct ExternalContext {
 
 impl ExternalContext {
     pub fn total_threads(&self) -> usize {
-        self.num_workers * self.num_threads_per_worker
+        self.num_workers
     }
 
     pub fn create_full_pool(&self) -> ThreadPool {

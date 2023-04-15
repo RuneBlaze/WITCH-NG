@@ -95,9 +95,7 @@ fn main() -> anyhow::Result<()> {
 
             let nworkers = if let Some(t) = threads {
                 t
-            } else if io_bound {
-                num_cpus::get() / 2
-            } else {
+            } else { 
                 num_cpus::get()
             };
 

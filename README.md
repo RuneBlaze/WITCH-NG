@@ -77,14 +77,13 @@ The output `extended_alignment.afa` contains an aligned version of all sequences
 
 ### `--threads <THREADS>`
 
-Set level of "worker" parallelism; WITCH-NG by default uses all logical cores unless `--io-bound` is set. If
-`--io-bound` is set, WITCH-NG will default to use half the number of logical cores for this parameter.
+Set level of "worker" parallelism; WITCH-NG by default uses all logical cores.
 
 ### `--io-bound`
 
 Change parallelization strategy. Let $t$ be the number of threads specified by `--threads`. Let $k$ be $2$
 if `--io-bound` else $1$. In the `hmmsearch` phase, the parallelization strategy uses $t$ workers, each worker using $k$ threads.
-In other phases, the strategy uses $t \cdot k$ workers.
+In other phases, the strategy uses $t$ workers.
 
 ### `--checkpoint`
 
