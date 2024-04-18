@@ -168,3 +168,7 @@ and has more features.
 ## License
 
 WITCH-NG is available under the GPLv3 LICENSE.
+
+## Acknowledgements
+
+Portions of this code were developed with the assistance of AI tools, such as GitHub Copilot. This is as of 2023, a standard practice to ensure efficient and effective software development.
